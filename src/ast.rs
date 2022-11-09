@@ -1,19 +1,26 @@
+use cranelift::prelude::*;
+
 #[derive(Debug)]
 pub enum TypeLiteral {
     F32(f32),
     F64(f64),
+    I8(i8),
+    I16(i16),
     I32(i32),
     I64(i64),
-    Str(String),
 }
 
-#[derive(Debug)]
-pub enum Type {
-    Float32,
-    Float64,
-    Int32,
-    Int64,
-    Str,
+impl TypeLiteral {
+    pub fn get_type(&self) -> types::Type {
+        match self {
+            TypeLiteral::F32(f32) => types::F32,
+            TypeLiteral::F64(f64) => types::F64,
+            TypeLiteral::I8(i8) => types::I8,
+            TypeLiteral::I16(i16) => types::I16,
+            TypeLiteral::I32(i32) => types::I32,
+            TypeLiteral::I64(i64) => types::I64,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -1,5 +1,7 @@
+#![feature(let_chains)]
 mod ast;
 mod grammar;
+mod jit;
 
 fn main() {
     println!(

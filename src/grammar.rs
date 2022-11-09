@@ -1,11 +1,13 @@
-use super::ast::{Expression, Type, TypeLiteral};
+use super::ast::{Expression, TypeLiteral};
+use cranelift::codegen::ir::types::*;
+use cranelift::prelude::*;
 
 peg::parser!(pub grammar parser() for str {
     use peg::ParseLiteral;
 
-    pub rule function() -> (String, Vec<String>, Type, Vec<Expression>)
+    pub rule function() -> (String, Vec<(String, Type)>, Type, Vec<Expression>)
         = [' ' | '\t' | '\n']* "fn" _ name:identifier() _
-        "(" params:((_ i:identifier() _ {i}) ** ",") ")" _
+        "(" params:((_ i:identifier() ":" _ t:type_name() _ { (i, t) }) ** ",") ")" _
         "->" _
         returns:(_ i:type_name() _ {i}) _
         "{" _ "\n"
@@ -77,8 +79,14 @@ peg::parser!(pub grammar parser() for str {
     }
 
     rule type_name() -> Type
-        = "f32" { Type::Float32 }
-        / "str" { Type::Str }
+        = "f32" { types::F32 }
+        / "f64" { types::F64 }
+        / "i8" { types::I8 }
+        / "i16" { types::I16 }
+        / "i32" { types::I32 }
+        / "i64" { types::I64 }
+        / "bool" { types::B8 }
+        / "&" { types::R64 }
         / expected!("type name")
 
     rule literal() -> Expression = precedence!{
