@@ -10,3 +10,5 @@ peg = "0.8.1"
 cranelift = "0.89.1"
 cranelift-module = "0.89.1"
 cranelift-jit = "0.89.1"
+
+either = "1.8"

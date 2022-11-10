@@ -1,6 +1,6 @@
 use cranelift::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TypeLiteral {
     F32(f32),
     F64(f64),
@@ -23,7 +23,17 @@ impl TypeLiteral {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
+pub enum Comparison {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Literal(TypeLiteral),
     Identifier(String),
@@ -43,5 +53,13 @@ pub enum Expression {
     Call(String, Vec<Expression>),
     Return(Option<Box<Expression>>),
     GlobalDataAddr(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub name: String,
+    pub parameters: Vec<(String, Type)>,
+    pub return_type: Type,
+    pub body: Vec<Expression>,
 }
 

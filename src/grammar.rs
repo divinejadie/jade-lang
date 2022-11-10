@@ -1,19 +1,24 @@
-use super::ast::{Expression, TypeLiteral};
+use super::ast::{Comparison, Expression, Function, TypeLiteral};
 use cranelift::codegen::ir::types::*;
 use cranelift::prelude::*;
 
 peg::parser!(pub grammar parser() for str {
     use peg::ParseLiteral;
+    use crate::ast::{Expression, Function, TypeLiteral};
 
-    pub rule function() -> (String, Vec<(String, Type)>, Type, Vec<Expression>)
+    pub rule file() -> Vec<Function>
+        = f:(function()** "\n") { f }
+        / expected!("function")
+
+    pub rule function() -> Function
         = [' ' | '\t' | '\n']* "fn" _ name:identifier() _
-        "(" params:((_ i:identifier() ":" _ t:type_name() _ { (i, t) }) ** ",") ")" _
+        "(" parameters:((_ i:identifier() ":" _ t:type_name() _ { (i, t) }) ** ",") ")" _
         "->" _
-        returns:(_ i:type_name() _ {i}) _
-        "{" _ "\n"
-        stmts:statements()
-        _ "}" _ "\n" _
-        { (name, params, returns, stmts) }
+        return_type:type_name() _
+        "{" _ "\n"?
+        body:statements()
+        _ "}" _ "\n"?
+        { Function { name, parameters, return_type, body}}
 
     rule statements() -> Vec<Expression>
         = s:(statement()*) { s }
@@ -75,7 +80,6 @@ peg::parser!(pub grammar parser() for str {
     rule type_literal() -> TypeLiteral = precedence!{
         d:$(['0'..='9']+) "." e:$(['0'..='9']+) { TypeLiteral::F32(format!("{}.{}", d, e).parse::<f32>().unwrap()) }
         n:$(['0'..='9']+) { TypeLiteral::I32(n.parse::<i32>().unwrap()) }
-        "\"" s:$(['a'..='z' | 'A'..='Z' | '_']['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | ' ']*) "\"" { TypeLiteral::Str(s.to_string()) }
     }
 
     rule type_name() -> Type
