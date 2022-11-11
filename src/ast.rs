@@ -2,6 +2,7 @@ use cranelift::prelude::*;
 
 #[derive(Debug, Clone)]
 pub enum TypeLiteral {
+    Bool(bool),
     F32(f32),
     F64(f64),
     I8(i8),
@@ -13,12 +14,13 @@ pub enum TypeLiteral {
 impl TypeLiteral {
     pub fn get_type(&self) -> types::Type {
         match self {
-            TypeLiteral::F32(f32) => types::F32,
-            TypeLiteral::F64(f64) => types::F64,
-            TypeLiteral::I8(i8) => types::I8,
-            TypeLiteral::I16(i16) => types::I16,
-            TypeLiteral::I32(i32) => types::I32,
-            TypeLiteral::I64(i64) => types::I64,
+            TypeLiteral::Bool(_) => types::B8,
+            TypeLiteral::F32(_) => types::F32,
+            TypeLiteral::F64(_) => types::F64,
+            TypeLiteral::I8(_) => types::I8,
+            TypeLiteral::I16(_) => types::I16,
+            TypeLiteral::I32(_) => types::I32,
+            TypeLiteral::I64(_) => types::I64,
         }
     }
 }
@@ -37,7 +39,8 @@ pub enum Comparison {
 pub enum Expression {
     Literal(TypeLiteral),
     Identifier(String),
-    Assign(String, Box<Expression>, Option<Type>),
+    Declare(String, Box<Expression>, Option<Type>, bool),
+    Assign(String, Box<Expression>),
     Eq(Box<Expression>, Box<Expression>),
     Ne(Box<Expression>, Box<Expression>),
     Lt(Box<Expression>, Box<Expression>),
@@ -50,7 +53,7 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
     IfElse(Box<Expression>, Vec<Expression>, Vec<Expression>),
     While(Box<Expression>, Vec<Expression>),
-    Call(String, Vec<Expression>),
+    Call(String, Vec<Expression>, Option<Box<Expression>>),
     Return(Option<Box<Expression>>),
     GlobalDataAddr(String),
 }

@@ -12,3 +12,5 @@ cranelift-module = "0.89.1"
 cranelift-jit = "0.89.1"
 
 either = "1.8"
+log = "0.4"
+pretty_env_logger = "0.4"

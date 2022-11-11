@@ -17,7 +17,7 @@ peg::parser!(pub grammar parser() for str {
         return_type:type_name() _
         "{" _ "\n"?
         body:statements()
-        _ "}" _ "\n"?
+        _ "}" "\n" _
         { Function { name, parameters, return_type, body}}
 
     rule statements() -> Vec<Expression>
@@ -26,28 +26,35 @@ peg::parser!(pub grammar parser() for str {
     rule statement() -> Expression
         = _ e:expression() _ "\n" { e }
 
+    #[cache_left_rec]
     rule expression() -> Expression
         = if_else()
         / while_loop()
+        / declare()
         / assignment()
         / returnexpr()
         / binary_op()
 
     rule if_else() -> Expression
-        = "if" _ e:expression() _ "{" _ "\n"
+        = "if" _ e:expression() _ "{" "\n"?
         then_body:statements() _ "}" _ "else" _ "{" _ "\n"
-        else_body:statements() _ "}"
+        else_body:statements()
+        "\n"? _ "}" _
         { Expression::IfElse(Box::new(e), then_body, else_body) }
 
     rule while_loop() -> Expression
-        = "while" _ e:expression() _ "{" _ "\n"
-        loop_body:statements() _ "}"
+        = "while" _ e:expression() ":" _ "\n"
+        loop_body:statements() _
         { Expression::While(Box::new(e), loop_body) }
 
-    rule assignment() -> Expression
-        = "let" _ i:identifier() ":"? _ t:type_name()? _ "=" _ e:expression() {Expression::Assign(i, Box::new(e), t)}
-        / i:identifier() _ "=" _ e:expression() {Expression::Assign(i, Box::new(e), None)}
+    rule declare() -> Expression
+        = "let" _ "mut" _ i:identifier() ":"? _ t:type_name()? _ "=" _ e:expression() { Expression::Declare(i, Box::new(e), t, true) }
+        / "let" _ i:identifier() ":"? _ t:type_name()? _ "=" _ e:expression() { Expression::Declare(i, Box::new(e), t, false) }
 
+    rule assignment() -> Expression
+        = i:identifier() _ "=" _ e:expression() {Expression::Assign(i, Box::new(e))}
+
+    #[cache_left_rec]
     rule binary_op() -> Expression = precedence!{
         a:@ _ "==" _ b:(@) { Expression::Eq(Box::new(a), Box::new(b)) }
         a:@ _ "!=" _ b:(@) { Expression::Ne(Box::new(a), Box::new(b)) }
@@ -62,9 +69,11 @@ peg::parser!(pub grammar parser() for str {
         a:@ _ "*" _ b:(@) { Expression::Mul(Box::new(a), Box::new(b)) }
         a:@ _ "/" _ b:(@) { Expression::Div(Box::new(a), Box::new(b)) }
         --
-        i:identifier() _ "(" args:((_ e:expression() _ {e}) ** ",") ")" { Expression::Call(i, args) }
-        i:identifier() { Expression::Identifier(i) }
+        a:@ "." i:identifier() _ "(" args:((_ b:expression() _ {b}) ** ",") ")" { Expression::Call(i, args, Some(Box::new(a))) }
+        --
         l:literal() { l }
+        i:identifier() _ "(" args:((_ e:expression() _ {e}) ** ",") ")" { Expression::Call(i, args, None) }
+        i:identifier() { Expression::Identifier(i) }
     }
 
     rule returnexpr() -> Expression
@@ -80,6 +89,8 @@ peg::parser!(pub grammar parser() for str {
     rule type_literal() -> TypeLiteral = precedence!{
         d:$(['0'..='9']+) "." e:$(['0'..='9']+) { TypeLiteral::F32(format!("{}.{}", d, e).parse::<f32>().unwrap()) }
         n:$(['0'..='9']+) { TypeLiteral::I32(n.parse::<i32>().unwrap()) }
+        "true" { TypeLiteral::Bool(true) }
+        "false" { TypeLiteral::Bool(false) }
     }
 
     rule type_name() -> Type

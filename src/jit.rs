@@ -9,12 +9,14 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataContext, Linkage, Module};
 use either::*;
 
+type Functions = HashMap<String, ast::Function>;
+
 pub struct Jit {
     builder_context: FunctionBuilderContext,
     context: codegen::Context,
     data_context: DataContext,
     module: JITModule,
-    functions: HashMap<String, ast::Function>,
+    functions: Functions,
 }
 
 impl Default for Jit {
@@ -34,7 +36,7 @@ impl Default for Jit {
 impl Jit {
     pub fn compile(&mut self, input: &str) -> Result<*const u8, String> {
         let functions = grammar::parser::file(input).map_err(|e| e.to_string())?;
-        let mut map: HashMap<String, ast::Function> = HashMap::new();
+        let mut map: Functions = HashMap::new();
         for func in functions.clone() {
             map.insert(func.name.clone(), func);
         }
@@ -90,7 +92,7 @@ impl Jit {
         params: Vec<(String, types::Type)>,
         return_type: types::Type,
         statements: Vec<Expression>,
-        functions: &HashMap<String, ast::Function>,
+        functions: &Functions,
     ) -> Result<(), String> {
         for (_, ty) in &params {
             self.context.func.signature.params.push(AbiParam::new(*ty));
@@ -109,14 +111,21 @@ impl Jit {
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
 
-        let variables =
-            declare_variables(&mut builder, &params, return_type, &statements, entry_block);
+        let variables = HashMap::new();
 
         let mut trans = FunctionTranslator {
             builder,
             variables,
             module: &mut self.module,
         };
+
+        for (i, (name, ty)) in params.iter().enumerate() {
+            let val = trans.builder.block_params(entry_block)[i];
+            let var = Variable::new(trans.variables.len());
+            trans.variables.insert(name.into(), (var, *ty));
+            trans.builder.declare_var(var, *ty);
+            trans.builder.def_var(var, val);
+        }
 
         for expr in statements {
             trans.translate_expression(expr, functions);
@@ -135,11 +144,7 @@ struct FunctionTranslator<'a> {
 }
 
 impl<'a> FunctionTranslator<'a> {
-    fn translate_expression(
-        &mut self,
-        expression: Expression,
-        functions: &HashMap<String, ast::Function>,
-    ) -> Value {
+    fn translate_expression(&mut self, expression: Expression, functions: &Functions) -> Value {
         match expression {
             Expression::Literal(literal) => match literal {
                 TypeLiteral::F32(val) => self.builder.ins().f32const(Ieee32::with_float(val)),
@@ -147,6 +152,7 @@ impl<'a> FunctionTranslator<'a> {
                     .builder
                     .ins()
                     .iconst(types::I32, Imm64::new(val as i64)),
+                TypeLiteral::Bool(val) => self.builder.ins().bconst(types::B8, val),
                 _ => Value::from_u32(0),
             },
             Expression::Add(lhs, rhs) => {
@@ -246,7 +252,7 @@ impl<'a> FunctionTranslator<'a> {
             Expression::Ge(lhs, rhs) => self.translate_cmp(Comparison::Ge, *lhs, *rhs, functions),
             Expression::Lt(lhs, rhs) => self.translate_cmp(Comparison::Lt, *lhs, *rhs, functions),
             Expression::Le(lhs, rhs) => self.translate_cmp(Comparison::Le, *lhs, *rhs, functions),
-            Expression::Call(name, args) => self.translate_call(&name, args, functions),
+            Expression::Call(name, args, base) => self.translate_call(&name, args, base, functions),
             Expression::Return(val) => {
                 let return_value;
                 if let Some(expr) = val {
@@ -255,13 +261,19 @@ impl<'a> FunctionTranslator<'a> {
                     return_value
                 } else {
                     self.builder.ins().return_(&[]);
-                    self.builder.ins().null(types::INVALID)
+                    self.builder.ins().null(types::I32)
                 }
             }
-            Expression::Assign(name, expr, _ty) => self.translate_assign(&name, *expr, functions),
+            Expression::Assign(name, expr) => self.translate_assign(&name, *expr, functions),
+            Expression::Declare(name, expr, ty, _mutable) => {
+                self.translate_declare(&name, *expr, ty, functions)
+            }
             Expression::Identifier(name) => {
                 let var = self.variables.get(&name).expect("Variable not declared").0;
                 self.builder.use_var(var)
+            }
+            Expression::IfElse(condition, then_body, else_body) => {
+                self.translate_if_else(*condition, then_body, else_body, functions)
             }
             _ => panic!("Unknown expression"),
         }
@@ -271,7 +283,7 @@ impl<'a> FunctionTranslator<'a> {
         &mut self,
         name: &str,
         expression: Expression,
-        functions: &HashMap<String, ast::Function>,
+        functions: &Functions,
     ) -> Value {
         let new_value = self.translate_expression(expression, functions);
         let variable = self.variables.get(name).unwrap().0;
@@ -279,17 +291,43 @@ impl<'a> FunctionTranslator<'a> {
         new_value
     }
 
+    fn translate_declare(
+        &mut self,
+        name: &str,
+        expression: Expression,
+        type_hint: Option<types::Type>,
+        functions: &Functions,
+    ) -> Value {
+        let mut ty;
+
+        if let Some(type_) = type_hint {
+            ty = type_;
+        } else {
+            ty = find_expression_type(&expression, &self.variables, functions)
+                .expect("Could not determine expression type");
+        }
+
+        let var = Variable::new(self.variables.len());
+        self.variables.insert(name.into(), (var, ty));
+        self.builder.declare_var(var, ty);
+
+        let value = self.translate_expression(expression, functions);
+        self.builder.def_var(var, value);
+        value
+    }
+
     fn translate_call(
         &mut self,
         name: &str,
         args: Vec<Expression>,
-        functions: &HashMap<String, ast::Function>,
+        base: Option<Box<Expression>>,
+        functions: &Functions,
     ) -> Value {
         let mut signature = self.module.make_signature();
         let func = functions.get(name).unwrap();
         signature.returns.push(AbiParam::new(func.return_type));
 
-        for (i, args) in args.iter().enumerate() {
+        for (i, _args) in func.parameters.iter().enumerate() {
             signature.params.push(AbiParam::new(func.parameters[i].1));
         }
 
@@ -303,12 +341,113 @@ impl<'a> FunctionTranslator<'a> {
             .declare_func_in_func(callee, &mut self.builder.func);
 
         let mut arg_values = Vec::new();
+        if let Some(b) = base {
+            arg_values.push(self.translate_expression(*b, functions));
+        }
+
         for arg in args {
             arg_values.push(self.translate_expression(arg, functions));
         }
 
         let call = self.builder.ins().call(local_callee, &arg_values);
         self.builder.inst_results(call)[0]
+    }
+
+    fn translate_if_else(
+        &mut self,
+        cond: Expression,
+        then_body: Vec<Expression>,
+        else_body: Vec<Expression>,
+        functions: &Functions,
+    ) -> Value {
+        let cond_type = find_expression_type(&cond, &self.variables, functions).unwrap();
+        let condition_value = self.translate_expression(cond, functions);
+
+        let then_block = self.builder.create_block();
+        let else_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+
+        if cond_type != types::B8 {
+            unimplemented!("If condition must be a boolean expression");
+        }
+
+        let then_ty = find_expression_type(
+            then_body.last().expect("If body has no expressions"),
+            &self.variables,
+            functions,
+        );
+
+        let else_ty = find_expression_type(
+            else_body.last().expect("Else body has no expressions"),
+            &self.variables,
+            functions,
+        );
+
+        if else_ty.is_some() && then_ty.is_some() && then_ty.unwrap() != else_ty.unwrap() {
+            panic!("If body and else body do not return the same type");
+        }
+
+        // Blocks return the last expression
+        if let Some(ty) = then_ty {
+            self.builder.append_block_param(merge_block, ty);
+        } else {
+            self.builder.append_block_param(merge_block, types::I32);
+        }
+
+        self.builder.ins().brz(condition_value, else_block, &[]);
+        self.builder.ins().jump(then_block, &[]);
+
+        self.builder.switch_to_block(then_block);
+        self.builder.seal_block(then_block);
+
+        let mut return_value;
+        if let Some(ty) = then_ty {
+            return_value = self.default_value(ty);
+        } else {
+            return_value = self.builder.ins().iconst(types::I32, 0);
+        }
+
+        let mut has_return = false;
+        for expr in then_body {
+            if let Expression::Return(_) = expr {
+                has_return = true;
+            }
+            return_value = self.translate_expression(expr, functions);
+        }
+
+        // If the body has a return then don't add another jump
+        if !has_return {
+            self.builder.ins().jump(merge_block, &[return_value]);
+        }
+
+        self.builder.switch_to_block(else_block);
+        self.builder.seal_block(else_block);
+
+        let mut else_return_value;
+        if let Some(ty) = then_ty {
+            else_return_value = self.default_value(ty);
+        } else {
+            else_return_value = self.builder.ins().iconst(types::I32, 0);
+        }
+        let mut has_else_return = false;
+        for expr in else_body {
+            if let Expression::Return(_) = &expr {
+                has_else_return = true;
+            }
+            else_return_value = self.translate_expression(expr, functions);
+        }
+
+        // If the body has a return then don't add another jump
+        if !has_else_return {
+            self.builder.ins().jump(merge_block, &[else_return_value]);
+        }
+
+        self.builder.switch_to_block(merge_block);
+        self.builder.seal_block(merge_block);
+
+        let phi = self.builder.block_params(merge_block)[0];
+
+        phi
     }
 
     fn translate_global_data_address(&mut self, name: String) -> Value {
@@ -330,7 +469,7 @@ impl<'a> FunctionTranslator<'a> {
         comp: Comparison,
         lhs: Expression,
         rhs: Expression,
-        functions: &HashMap<String, ast::Function>,
+        functions: &Functions,
     ) -> Value {
         let ty_l = find_expression_type(&lhs, &mut self.variables, functions);
         let ty_r = find_expression_type(&rhs, &mut self.variables, functions);
@@ -374,7 +513,7 @@ impl<'a> FunctionTranslator<'a> {
         cmp: IntCC,
         lhs: Expression,
         rhs: Expression,
-        functions: &HashMap<String, ast::Function>,
+        functions: &Functions,
     ) -> Value {
         let lhs = self.translate_expression(lhs, functions);
         let rhs = self.translate_expression(rhs, functions);
@@ -385,110 +524,31 @@ impl<'a> FunctionTranslator<'a> {
         cmp: FloatCC,
         lhs: Expression,
         rhs: Expression,
-        functions: &HashMap<String, ast::Function>,
+        functions: &Functions,
     ) -> Value {
         let lhs = self.translate_expression(lhs, functions);
         let rhs = self.translate_expression(rhs, functions);
         self.builder.ins().fcmp(cmp, lhs, rhs)
     }
-}
 
-fn declare_variables(
-    builder: &mut FunctionBuilder,
-    params: &[(String, types::Type)],
-    return_type: types::Type,
-    statements: &[Expression],
-    entry_block: Block,
-) -> HashMap<String, (Variable, types::Type)> {
-    let mut variables = HashMap::new();
-    let mut index = 0;
-
-    for (i, (name, ty)) in params.iter().enumerate() {
-        let val = builder.block_params(entry_block)[i];
-        let var = declare_variable(*ty, Some(val), builder, &mut variables, &mut index, name);
-    }
-
-    let zero = builder.ins().iconst(types::I32, 0);
-
-    for expr in statements {
-        declare_variables_in_statement(builder, &mut variables, &mut index, expr);
-    }
-
-    variables
-}
-
-fn declare_variables_in_statement(
-    builder: &mut FunctionBuilder,
-    variables: &mut HashMap<String, (Variable, types::Type)>,
-    index: &mut usize,
-    expression: &Expression,
-) {
-    let zero = builder.ins().iconst(types::I32, 0);
-    match *expression {
-        Expression::Assign(ref name, _, ref ty) => {
-            // TODO: Infer type
-            declare_variable(
-                ty.expect("Type inference not implemented"),
-                None,
-                builder,
-                variables,
-                index,
-                name,
-            );
+    fn default_value(&mut self, ty: types::Type) -> Value {
+        match ty {
+            types::F32 => self.builder.ins().f32const(0.0),
+            types::F64 => self.builder.ins().f64const(0.0),
+            types::I8 => self.builder.ins().iconst(types::I8, 0),
+            types::I16 => self.builder.ins().iconst(types::I16, 0),
+            types::I32 => self.builder.ins().iconst(types::I32, 0),
+            types::I64 => self.builder.ins().iconst(types::I64, 0),
+            types::B8 => self.builder.ins().bconst(types::B8, false),
+            _ => unimplemented!(),
         }
-        Expression::IfElse(ref _cond, ref then_body, ref else_body) => {
-            for statement in then_body {
-                declare_variables_in_statement(builder, variables, index, statement)
-            }
-            for statement in else_body {
-                declare_variables_in_statement(builder, variables, index, statement)
-            }
-        }
-        Expression::While(ref _cond, ref loop_body) => {
-            for statement in loop_body {
-                declare_variables_in_statement(builder, variables, index, statement)
-            }
-        }
-        _ => (),
     }
-}
-
-fn declare_variable(
-    ty: types::Type,
-    value: Option<Value>,
-    builder: &mut FunctionBuilder,
-    variables: &mut HashMap<String, (Variable, types::Type)>,
-    index: &mut usize,
-    name: &str,
-) -> Variable {
-    let var = Variable::new(*index);
-    variables.insert(name.into(), (var, ty));
-    builder.declare_var(var, ty);
-    *index += 1;
-
-    // Variables always have a value
-    if let Some(val) = value {
-        builder.def_var(var, val);
-    } else {
-        let val = match ty {
-            types::F32 => builder.ins().f32const(0.0),
-            types::F64 => builder.ins().f64const(0.0),
-            types::I8 => builder.ins().iconst(types::I8, Imm64::new(0)),
-            types::I16 => builder.ins().iconst(types::I16, Imm64::new(0)),
-            types::I32 => builder.ins().iconst(types::I32, Imm64::new(0)),
-            types::I64 => builder.ins().iconst(types::I64, Imm64::new(0)),
-            _ => panic!("Type not implemented"),
-        };
-        builder.def_var(var, val);
-    }
-
-    var
 }
 
 fn find_expression_type(
     expression: &Expression,
-    variables: &mut HashMap<String, (Variable, types::Type)>,
-    functions: &HashMap<String, ast::Function>,
+    variables: &HashMap<String, (Variable, types::Type)>,
+    functions: &Functions,
 ) -> Option<types::Type> {
     // All literals are of same type
     let mut binary = |rhs: &Box<Expression>, lhs: &Box<Expression>| -> Option<types::Type> {
@@ -509,17 +569,19 @@ fn find_expression_type(
     match expression {
         Expression::Literal(literal) => Some(literal.get_type()),
         Expression::Identifier(ident) => Some(variables.get(ident).unwrap().1),
-        Expression::Call(ref name, ref _exprs) => Some(functions.get(name).unwrap().return_type),
-        Expression::Eq(ref lhs, ref rhs) => binary(lhs, rhs),
-        Expression::Lt(ref lhs, ref rhs) => binary(lhs, rhs),
-        Expression::Le(ref lhs, ref rhs) => binary(lhs, rhs),
-        Expression::Gt(ref lhs, ref rhs) => binary(lhs, rhs),
-        Expression::Ge(ref lhs, ref rhs) => binary(lhs, rhs),
+        Expression::Call(ref name, ref _exprs, _) => Some(functions.get(name).unwrap().return_type),
+        Expression::Eq(ref lhs, ref rhs)
+        | Expression::Ne(ref lhs, ref rhs)
+        | Expression::Lt(ref lhs, ref rhs)
+        | Expression::Le(ref lhs, ref rhs)
+        | Expression::Gt(ref lhs, ref rhs)
+        | Expression::Ge(ref lhs, ref rhs) => Some(types::B8),
         Expression::Add(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Sub(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Mul(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Div(ref lhs, ref rhs) => binary(lhs, rhs),
-        Expression::Assign(_, _, _) => None,
+        Expression::Assign(_, _) => None,
+        Expression::Return(ref _expr) => None,
         _ => None,
     }
 }
