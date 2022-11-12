@@ -41,8 +41,8 @@ peg::parser!(pub grammar parser() for str {
         { Expression::IfElse(Box::new(e), then_body, else_body) }
 
     rule while_loop() -> Expression
-        = "while" _ e:expression() ":" _ "\n"
-        loop_body:statements() _
+        = "while" _ e:expression() _ "{" "\n"?
+        loop_body:statements() _ "\n"? _ "}" _
         { Expression::While(Box::new(e), loop_body) }
 
     rule declare() -> Expression

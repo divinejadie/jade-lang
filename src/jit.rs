@@ -273,6 +273,9 @@ impl<'a> FunctionTranslator<'a> {
             Expression::IfElse(condition, then_body, else_body) => {
                 self.translate_if_else(*condition, then_body, else_body, functions)
             }
+            Expression::While(condition, loop_body) => {
+                self.translate_while_loop(*condition, loop_body, functions)
+            }
             _ => panic!("Unknown expression"),
         }
     }
@@ -446,6 +449,45 @@ impl<'a> FunctionTranslator<'a> {
         let phi = self.builder.block_params(merge_block)[0];
 
         phi
+    }
+
+    fn translate_while_loop(
+        &mut self,
+        condition: Expression,
+        loop_body: Vec<Expression>,
+        functions: &Functions,
+    ) -> Value {
+        let header_block = self.builder.create_block();
+        let body_block = self.builder.create_block();
+        let exit_block = self.builder.create_block();
+
+        self.builder.ins().jump(header_block, &[]);
+        self.builder.switch_to_block(header_block);
+
+        let condition_ty = find_expression_type(&condition, &self.variables, functions);
+        if condition_ty.unwrap() != types::B8 {
+            panic!("While loop condition must be a boolean expression");
+        }
+
+        let condition_value = self.translate_expression(condition, functions);
+        self.builder.ins().brz(condition_value, exit_block, &[]);
+        self.builder.ins().jump(body_block, &[]);
+
+        self.builder.switch_to_block(body_block);
+        self.builder.seal_block(body_block);
+
+        for expr in loop_body {
+            self.translate_expression(expr, functions);
+        }
+
+        self.builder.ins().jump(header_block, &[]);
+
+        self.builder.switch_to_block(exit_block);
+
+        self.builder.seal_block(header_block);
+        self.builder.seal_block(exit_block);
+
+        self.builder.ins().iconst(types::I32, 0)
     }
 
     fn translate_global_data_address(&mut self, name: String) -> Value {
