@@ -1,9 +1,7 @@
-use super::ast::{Comparison, Expression, Function, TypeLiteral};
 use cranelift::codegen::ir::types::*;
 use cranelift::prelude::*;
 
 peg::parser!(pub grammar parser() for str {
-    use peg::ParseLiteral;
     use crate::ast::{Expression, Function, TypeLiteral};
 
     pub rule file() -> Vec<Function>

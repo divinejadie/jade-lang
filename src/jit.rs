@@ -16,7 +16,6 @@ pub struct Jit {
     context: codegen::Context,
     data_context: DataContext,
     module: JITModule,
-    functions: Functions,
 }
 
 impl Default for Jit {
@@ -28,7 +27,6 @@ impl Default for Jit {
             context: module.make_context(),
             data_context: DataContext::new(),
             module,
-            functions: HashMap::new(),
         }
     }
 }
@@ -51,7 +49,7 @@ impl Jit {
                 .declare_function(&func.name, Linkage::Export, &self.context.func.signature)
                 .map_err(|e| e.to_string())?;
             if func.name == "main" {
-                main_id = id.clone();
+                main_id = id;
                 has_main = true;
             }
             self.module
@@ -298,7 +296,7 @@ impl<'a> FunctionTranslator<'a> {
         type_hint: Option<types::Type>,
         functions: &Functions,
     ) -> Value {
-        let mut ty;
+        let ty;
 
         if let Some(type_) = type_hint {
             ty = type_;
@@ -487,7 +485,6 @@ impl<'a> FunctionTranslator<'a> {
                     Comparison::Ge => Either::Left(FloatCC::GreaterThanOrEqual),
                     Comparison::Lt => Either::Left(FloatCC::LessThan),
                     Comparison::Le => Either::Left(FloatCC::LessThanOrEqual),
-                    _ => unreachable!(),
                 }
             } else {
                 match comp {
@@ -497,7 +494,6 @@ impl<'a> FunctionTranslator<'a> {
                     Comparison::Ge => Either::Right(IntCC::SignedGreaterThanOrEqual),
                     Comparison::Lt => Either::Right(IntCC::SignedLessThan),
                     Comparison::Le => Either::Right(IntCC::SignedLessThanOrEqual),
-                    _ => unreachable!(),
                 }
             }
         };
@@ -551,7 +547,7 @@ fn find_expression_type(
     functions: &Functions,
 ) -> Option<types::Type> {
     // All literals are of same type
-    let mut binary = |rhs: &Box<Expression>, lhs: &Box<Expression>| -> Option<types::Type> {
+    let binary = |rhs: &Box<Expression>, lhs: &Box<Expression>| -> Option<types::Type> {
         let left = find_expression_type(lhs, variables, functions);
         let right = find_expression_type(rhs, variables, functions);
         if let Some(l) = left
@@ -570,12 +566,12 @@ fn find_expression_type(
         Expression::Literal(literal) => Some(literal.get_type()),
         Expression::Identifier(ident) => Some(variables.get(ident).unwrap().1),
         Expression::Call(ref name, ref _exprs, _) => Some(functions.get(name).unwrap().return_type),
-        Expression::Eq(ref lhs, ref rhs)
-        | Expression::Ne(ref lhs, ref rhs)
-        | Expression::Lt(ref lhs, ref rhs)
-        | Expression::Le(ref lhs, ref rhs)
-        | Expression::Gt(ref lhs, ref rhs)
-        | Expression::Ge(ref lhs, ref rhs) => Some(types::B8),
+        Expression::Eq(_, _)
+        | Expression::Ne(_, _)
+        | Expression::Lt(_, _)
+        | Expression::Le(_, _)
+        | Expression::Gt(_, _)
+        | Expression::Ge(_, _) => Some(types::B8),
         Expression::Add(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Sub(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Mul(ref lhs, ref rhs) => binary(lhs, rhs),
