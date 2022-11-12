@@ -1,5 +1,5 @@
 use super::ast;
-use super::ast::{Comparison, Expression, TypeLiteral};
+use super::ast::{BooleanExpr, Comparison, Expression, TypeLiteral};
 use super::grammar;
 
 use std::collections::HashMap;
@@ -243,6 +243,18 @@ impl<'a> FunctionTranslator<'a> {
                 } else {
                     panic!("Cannot find type of div expression");
                 }
+            }
+            Expression::And(lhs, rhs) => {
+                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::And, functions)
+            }
+            Expression::Or(lhs, rhs) => {
+                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::Or, functions)
+            }
+            Expression::Xor(lhs, rhs) => {
+                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::Xor, functions)
+            }
+            Expression::Not(expr) => {
+                self.translate_boolean_unary(*expr, BooleanExpr::Not, functions)
             }
             Expression::Eq(lhs, rhs) => self.translate_cmp(Comparison::Eq, *lhs, *rhs, functions),
             Expression::Ne(lhs, rhs) => self.translate_cmp(Comparison::Ne, *lhs, *rhs, functions),
@@ -493,7 +505,7 @@ impl<'a> FunctionTranslator<'a> {
     fn translate_global_data_address(&mut self, name: String) -> Value {
         let sym = self
             .module
-            .declare_data(&name, Linkage::Export, true, false)
+            .declare_data(&name, Linkage::Local, true, false)
             .expect("Could not declare reference in function");
 
         let local_id = self
@@ -504,6 +516,58 @@ impl<'a> FunctionTranslator<'a> {
         self.builder.ins().symbol_value(pointer, local_id)
     }
 
+    fn translate_boolean_expression(
+        &mut self,
+        lhs: Expression,
+        rhs: Expression,
+        op: BooleanExpr,
+        functions: &Functions,
+    ) -> Value {
+        let lhs_ty = find_expression_type(&lhs, &self.variables, functions);
+        let rhs_ty = find_expression_type(&rhs, &self.variables, functions);
+
+        if let Some(lt) = lhs_ty
+            && let Some(rt) = rhs_ty
+        {
+            if lt != types::B8 || rt != types::B8 {
+                panic!("Binary boolean expression must use boolean type");
+            }
+        } else {
+            panic!("Binary boolean expressions type do not match");
+        }
+
+        let rhs = self.translate_expression(rhs, functions);
+        let lhs = self.translate_expression(lhs, functions);
+
+        match op {
+            BooleanExpr::Or => self.builder.ins().bor(rhs, lhs),
+            BooleanExpr::Xor => self.builder.ins().bxor(rhs, lhs),
+            BooleanExpr::And => self.builder.ins().band(rhs, lhs),
+            _ => unimplemented!(),
+        }
+    }
+
+    fn translate_boolean_unary(
+        &mut self,
+        expr: Expression,
+        op: BooleanExpr,
+        functions: &Functions,
+    ) -> Value {
+        let ty = find_expression_type(&expr, &self.variables, functions);
+
+        if let Some(expr_ty) = ty {
+            if expr_ty != types::B8 {
+                panic!("Unary boolean expression must use boolean type");
+            }
+        }
+
+        let expr = self.translate_expression(expr, functions);
+
+        match op {
+            BooleanExpr::Not => self.builder.ins().bnot(expr),
+            _ => unimplemented!(),
+        }
+    }
     fn translate_cmp(
         &mut self,
         comp: Comparison,
@@ -613,7 +677,11 @@ fn find_expression_type(
         | Expression::Lt(_, _)
         | Expression::Le(_, _)
         | Expression::Gt(_, _)
-        | Expression::Ge(_, _) => Some(types::B8),
+        | Expression::Ge(_, _)
+        | Expression::And(_, _)
+        | Expression::Or(_, _)
+        | Expression::Xor(_, _)
+        | Expression::Not(_) => Some(types::B8),
         Expression::Add(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Sub(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Mul(ref lhs, ref rhs) => binary(lhs, rhs),

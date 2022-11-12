@@ -67,6 +67,11 @@ peg::parser!(pub grammar parser() for str {
         a:@ _ "*" _ b:(@) { Expression::Mul(Box::new(a), Box::new(b)) }
         a:@ _ "/" _ b:(@) { Expression::Div(Box::new(a), Box::new(b)) }
         --
+        a:@ _ "and" _ b:(@) { Expression::And(Box::new(a), Box::new(b)) }
+        a:@ _ "or" _ b:(@) { Expression::Or(Box::new(a), Box::new(b)) }
+        a:@ _ "xor" _ b:(@) { Expression::Xor(Box::new(a), Box::new(b)) }
+        _ "not" _ e:expression() { Expression::Not(Box::new(e)) }
+        --
         a:@ "." i:identifier() _ "(" args:((_ b:expression() _ {b}) ** ",") ")" { Expression::Call(i, args, Some(Box::new(a))) }
         --
         l:literal() { l }

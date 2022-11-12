@@ -35,6 +35,14 @@ pub enum Comparison {
     Le,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum BooleanExpr {
+    And,
+    Or,
+    Xor,
+    Not,
+}
+
 #[derive(Debug, Clone)]
 pub enum Expression {
     Literal(TypeLiteral),
@@ -47,6 +55,10 @@ pub enum Expression {
     Le(Box<Expression>, Box<Expression>),
     Gt(Box<Expression>, Box<Expression>),
     Ge(Box<Expression>, Box<Expression>),
+    And(Box<Expression>, Box<Expression>),
+    Or(Box<Expression>, Box<Expression>),
+    Xor(Box<Expression>, Box<Expression>),
+    Not(Box<Expression>),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
