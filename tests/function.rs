@@ -1,5 +1,5 @@
 mod common;
-use jadescript::Jit;
+use jadescript::JitCodegen;
 
 const CODE: &str = r#"
 fn double(x: f32) -> f32 {
@@ -27,18 +27,18 @@ fn main(a: f32) -> f32 {
 
 #[test]
 fn function_call() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<f32, f32>(&mut jit, CODE, 10.0).unwrap(),
+        common::run_code::<f32, f32>(&mut jit_codegen, CODE, 10.0).unwrap(),
         20.0
     );
 }
 
 #[test]
 fn ufcs_method_call() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<f32, f32>(&mut jit, CODE_2, 10.0).unwrap(),
+        common::run_code::<f32, f32>(&mut jit_codegen, CODE_2, 10.0).unwrap(),
         20.0
     );
 }

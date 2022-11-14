@@ -1,32 +1,31 @@
+use jadescript::JitCodegen;
 use jadescript::*;
 
+use std::path::PathBuf;
+
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(name = "Jadescript")]
+#[command(author = "Amelia Joison")]
+#[command(version = "0.1")]
+#[command(about =  "Compile and JIT Jadescript", long_about = None)]
+pub struct Args {
+    pub file: PathBuf,
+
+    pub out: PathBuf,
+}
+
+// STEPS TO RUN:
+// 1. jadescript example.jadescript out.o
+// 2. mold out.o -dynamic-linker /lib64/ld-linux-x86-64.so.2 /usr/lib64/libc.so.6
+// 3. ./a.out
 fn main() {
     pretty_env_logger::init();
-    println!("{:?}", parser::file(TEST_CODE).unwrap());
-    let mut jit = Jit::default();
-    unsafe { println!("{}", run_code::<i32, f32>(&mut jit, TEST_CODE, 16).unwrap()) }
-}
+    let args = Args::parse();
+    println!("{:?}", args);
+    let mut codegen = AotCodegen::default();
 
-unsafe fn run_code<I, O>(jit: &mut Jit, code: &str, input: I) -> Result<O, String> {
-    // Pass the string to the JIT, and it returns a raw pointer to machine code.
-    let code_ptr = jit.compile(code)?;
-    // Cast the raw pointer to a typed function pointer. This is unsafe, because
-    // this is the critical point where you have to trust that the generated code
-    // is safe to be called.
-    let code_fn = std::mem::transmute::<_, fn(I) -> O>(code_ptr);
-    // And now we can call it!
-    Ok(code_fn(input))
+    codegen.compile_project(&args.file, &args.out);
 }
-
-const TEST_CODE: &str = r#"
-fn double(x: f32) -> f32 {
-	return x * 4.0
-}
-
-fn main(a: f32) -> f32 {
-	let mut x: f32 = a + a
-	x = double(x)
-	return x
-}
-"#;
 

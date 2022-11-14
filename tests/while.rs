@@ -1,5 +1,5 @@
 mod common;
-use jadescript::Jit;
+use jadescript::JitCodegen;
 
 const WHILE: &str = r#"
 fn main(a: i32) -> i32 {
@@ -13,9 +13,9 @@ fn main(a: i32) -> i32 {
 
 #[test]
 fn while_loop() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<i32, i32>(&mut jit, WHILE, 24).unwrap(),
+        common::run_code::<i32, i32>(&mut jit_codegen, WHILE, 24).unwrap(),
         24
     );
 }

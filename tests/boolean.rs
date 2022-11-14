@@ -1,5 +1,5 @@
 mod common;
-use jadescript::Jit;
+use jadescript::JitCodegen;
 
 const AND: &str = r#"
 fn main(a: bool, b: bool) -> bool {
@@ -27,61 +27,65 @@ fn main(a: bool) -> bool {
 
 #[test]
 fn not() {
-    let mut jit = Jit::default();
-    assert!(common::run_code::<bool, bool>(&mut jit, NOT, false).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(common::run_code::<bool, bool>(&mut jit_codegen, NOT, false).unwrap(),);
 }
 
 #[test]
 fn and_true() {
-    let mut jit = Jit::default();
-    assert!(common::run_code::<(bool, bool), bool>(&mut jit, AND, (true, true)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(common::run_code::<(bool, bool), bool>(&mut jit_codegen, AND, (true, true)).unwrap(),);
 }
 
 #[test]
 fn and_true_false() {
-    let mut jit = Jit::default();
-    assert!(!common::run_code::<(bool, bool), bool>(&mut jit, AND, (true, false)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(!common::run_code::<(bool, bool), bool>(&mut jit_codegen, AND, (true, false)).unwrap(),);
 }
 
 #[test]
 fn and_false() {
-    let mut jit = Jit::default();
-    assert!(!common::run_code::<(bool, bool), bool>(&mut jit, AND, (false, false)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(
+        !common::run_code::<(bool, bool), bool>(&mut jit_codegen, AND, (false, false)).unwrap(),
+    );
 }
 
 #[test]
 fn or_true() {
-    let mut jit = Jit::default();
-    assert!(common::run_code::<(bool, bool), bool>(&mut jit, OR, (true, true)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(common::run_code::<(bool, bool), bool>(&mut jit_codegen, OR, (true, true)).unwrap(),);
 }
 
 #[test]
 fn or_false() {
-    let mut jit = Jit::default();
-    assert!(!common::run_code::<(bool, bool), bool>(&mut jit, OR, (false, false)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(!common::run_code::<(bool, bool), bool>(&mut jit_codegen, OR, (false, false)).unwrap(),);
 }
 
 #[test]
 fn or_true_false() {
-    let mut jit = Jit::default();
-    assert!(common::run_code::<(bool, bool), bool>(&mut jit, OR, (true, false)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(common::run_code::<(bool, bool), bool>(&mut jit_codegen, OR, (true, false)).unwrap(),);
 }
 
 #[test]
 fn xor_true() {
-    let mut jit = Jit::default();
-    assert!(!common::run_code::<(bool, bool), bool>(&mut jit, XOR, (true, true)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(!common::run_code::<(bool, bool), bool>(&mut jit_codegen, XOR, (true, true)).unwrap(),);
 }
 
 #[test]
 fn xor_false() {
-    let mut jit = Jit::default();
-    assert!(!common::run_code::<(bool, bool), bool>(&mut jit, XOR, (false, false)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(
+        !common::run_code::<(bool, bool), bool>(&mut jit_codegen, XOR, (false, false)).unwrap(),
+    );
 }
 
 #[test]
 fn xor_true_false() {
-    let mut jit = Jit::default();
-    assert!(common::run_code::<(bool, bool), bool>(&mut jit, XOR, (true, false)).unwrap(),);
+    let mut jit_codegen = JitCodegen::default();
+    assert!(common::run_code::<(bool, bool), bool>(&mut jit_codegen, XOR, (true, false)).unwrap(),);
 }
 

@@ -1,5 +1,5 @@
 mod common;
-use jadescript::Jit;
+use jadescript::JitCodegen;
 
 const HINT: &str = r#"
 fn main() -> bool {
@@ -17,18 +17,18 @@ fn main() -> bool {
 
 #[test]
 fn declaration_type_hint() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<(), bool>(&mut jit, HINT, ()).unwrap(),
+        common::run_code::<(), bool>(&mut jit_codegen, HINT, ()).unwrap(),
         false
     );
 }
 
 #[test]
 fn declaration_infer_type() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<(), bool>(&mut jit, INFER, ()).unwrap(),
+        common::run_code::<(), bool>(&mut jit_codegen, INFER, ()).unwrap(),
         false
     );
 }

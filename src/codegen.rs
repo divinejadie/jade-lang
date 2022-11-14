@@ -1,27 +1,34 @@
 use super::ast;
 use super::ast::{BooleanExpr, Comparison, Expression, TypeLiteral};
-use super::grammar;
+use crate::grammar;
 
 use std::collections::HashMap;
 
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataContext, Linkage, Module};
+use cranelift_object::*;
 use either::*;
 
 type Functions = HashMap<String, ast::Function>;
 
-pub struct Jit {
+pub struct JitCodegen {
     builder_context: FunctionBuilderContext,
     context: codegen::Context,
     data_context: DataContext,
     module: JITModule,
 }
 
-impl Default for Jit {
+pub struct AotCodegen {
+    builder_context: FunctionBuilderContext,
+    context: codegen::Context,
+    data_context: DataContext,
+}
+
+impl Default for JitCodegen {
     fn default() -> Self {
-        let builder = JITBuilder::new(cranelift_module::default_libcall_names());
-        let module = JITModule::new(builder.unwrap());
+        let builder = JITBuilder::new(cranelift_module::default_libcall_names()).unwrap();
+        let module = JITModule::new(builder);
         Self {
             builder_context: FunctionBuilderContext::new(),
             context: module.make_context(),
@@ -31,7 +38,265 @@ impl Default for Jit {
     }
 }
 
-impl Jit {
+impl Default for AotCodegen {
+    fn default() -> Self {
+        Self {
+            builder_context: FunctionBuilderContext::new(),
+            context: codegen::Context::new(),
+            data_context: DataContext::new(),
+        }
+    }
+}
+
+impl AotCodegen {
+    pub fn compile_project(
+        &mut self,
+        main_module_path: &std::path::Path,
+        output: &std::path::Path,
+    ) {
+        let main_code = std::fs::read_to_string(main_module_path).unwrap();
+
+        let module_definitions: Vec<String> = grammar::mod_scan::modules(&main_code).unwrap();
+
+        let flag_builder = settings::builder();
+        let mut flags = settings::Flags::new(flag_builder);
+        flags.enable_verifier();
+        flags.enable_verifier();
+        let isa_builder = codegen::isa::lookup_by_name("x86_64-unknown-linux-gnu").unwrap();
+        let isa = isa_builder.finish(flags).unwrap();
+
+        let mut builder = ObjectBuilder::new(
+            isa,
+            main_module_path.to_str().unwrap(),
+            cranelift_module::default_libcall_names(),
+        )
+        .unwrap();
+        builder.per_function_section(false);
+        let mut module = ObjectModule::new(builder);
+        self.context = module.make_context();
+        let mut functions = HashMap::new();
+
+        self.insert_libc_functions(&mut module, &mut functions);
+        self.insert_start(&mut module);
+
+        self.create_data(&mut module, "hello", "hello\0".to_string().into_bytes())
+            .unwrap();
+
+        self.compile_module(&main_code, &mut module, &mut functions)
+            .unwrap();
+        for include_module in module_definitions {
+            let mut path = std::env::current_dir().unwrap();
+            let mut include = std::path::PathBuf::from(&include_module);
+            include.set_extension("jadescript");
+            path.push(&include);
+
+            let module_code = std::fs::read_to_string(path).expect("Module is not a file");
+
+            self.compile_module(&module_code, &mut module, &mut functions)
+                .unwrap();
+        }
+
+        let compiled_module = module.finish();
+        println!("Functions {:?}", compiled_module.functions);
+
+        let data = compiled_module.emit().map_err(|e| e.to_string()).unwrap();
+        let mut output_path = std::env::current_dir().unwrap();
+        output_path.push(output);
+
+        println!("{:?}", output);
+        std::fs::write(output_path, data).unwrap();
+    }
+
+    // Internal module, not separate compilation unit
+    fn compile_module(
+        &mut self,
+        code: &str,
+        module: &mut ObjectModule,
+        functions: &mut Functions,
+    ) -> Result<(), String> {
+        let module_functions = grammar::parser::file(code).map_err(|e| e.to_string())?;
+
+        for func in module_functions.clone() {
+            functions.insert(func.name.clone(), func);
+        }
+
+        let mut main_id = cranelift_module::FuncId::from_u32(0);
+        let mut has_main = false;
+        for func in module_functions {
+            self.translate_function(
+                module,
+                &func.name,
+                func.parameters,
+                func.return_type,
+                func.body,
+                functions,
+            )
+            .unwrap();
+        }
+
+        // if !has_main {
+        //     return Err(String::from("Does not have main function"));
+        // }
+
+        Ok(())
+    }
+
+    fn insert_start(&mut self, module: &mut ObjectModule) {
+        let sig = Signature {
+            params: vec![],
+            returns: vec![AbiParam::new(types::I32)],
+            call_conv: isa::CallConv::SystemV,
+        };
+        let id = module
+            .declare_function("_start", Linkage::Export, &sig)
+            .unwrap();
+
+        let func = codegen::ir::function::Function::with_name_signature(
+            codegen::ir::UserFuncName::user(0, 0),
+            sig,
+        );
+        self.context.func = func;
+        let mut builder = FunctionBuilder::new(&mut self.context.func, &mut self.builder_context);
+        {
+            let entry_block = builder.create_block();
+
+            builder.append_block_params_for_function_params(entry_block);
+            builder.switch_to_block(entry_block);
+            builder.seal_block(entry_block);
+
+            let main_sig = Signature {
+                params: vec![],
+                returns: vec![],
+                call_conv: isa::CallConv::SystemV,
+            };
+            // Call main
+            let callee = module
+                .declare_function("main", Linkage::Import, &main_sig)
+                .expect("Could not declare function");
+
+            let local_callee = module.declare_func_in_func(callee, &mut builder.func);
+            builder.ins().call(local_callee, &[]);
+            let out = builder.ins().iconst(types::I32, 0);
+            builder.ins().return_(&[out]);
+
+            builder.seal_all_blocks();
+            builder.finalize();
+            // Syscall exit
+        }
+        module.define_function(id, &mut self.context).unwrap();
+    }
+
+    fn translate_function(
+        &mut self,
+        module: &mut ObjectModule,
+        name: &str,
+        params: Vec<(String, types::Type)>,
+        return_type: Option<types::Type>,
+        statements: Vec<Expression>,
+        functions: &Functions,
+    ) -> Result<(), String> {
+        let sig = Signature {
+            params: params
+                .iter()
+                .map(|p| AbiParam::new(p.1))
+                .collect::<Vec<_>>(),
+            returns: match return_type {
+                Some(ty) => vec![AbiParam::new(ty)],
+                None => vec![],
+            },
+            call_conv: isa::CallConv::SystemV,
+        };
+
+        let linkage = match name {
+            "main" => Linkage::Export,
+            _ => Linkage::Local,
+        };
+        let id = module
+            .declare_function(name, linkage, &sig)
+            .map_err(|e| e.to_string())?;
+
+        let func = codegen::ir::function::Function::with_name_signature(
+            codegen::ir::UserFuncName::user(0, id.as_u32() + 1), // +1 for _start
+            sig,
+        );
+        self.context.func = func;
+        let mut builder = FunctionBuilder::new(&mut self.context.func, &mut self.builder_context);
+        {
+            let entry_block = builder.create_block();
+
+            builder.append_block_params_for_function_params(entry_block);
+            builder.switch_to_block(entry_block);
+            builder.seal_block(entry_block);
+            let variables = HashMap::new();
+
+            let mut trans = FunctionTranslator {
+                builder,
+                variables,
+                module,
+            };
+
+            for (i, (name, ty)) in params.iter().enumerate() {
+                let val = trans.builder.block_params(entry_block)[i];
+                let var = Variable::new(trans.variables.len());
+                trans.variables.insert(name.into(), (var, *ty));
+                trans.builder.declare_var(var, *ty);
+                trans.builder.def_var(var, val);
+            }
+
+            for expr in statements {
+                trans.translate_expression(expr, functions);
+            }
+            trans.builder.seal_all_blocks();
+            trans.builder.finalize();
+        }
+
+        module.define_function(id, &mut self.context).unwrap();
+
+        Ok(())
+    }
+
+    pub fn create_data(
+        &mut self,
+        module: &mut ObjectModule,
+        name: &str,
+        contents: Vec<u8>,
+    ) -> Result<(), String> {
+        self.data_context.define(contents.into_boxed_slice());
+        let id = module
+            .declare_data(name, Linkage::Export, true, false)
+            .map_err(|e| e.to_string())?;
+
+        module
+            .define_data(id, &self.data_context)
+            .map_err(|e| e.to_string())?;
+        self.data_context.clear();
+        Ok(())
+    }
+
+    fn insert_libc_functions(&mut self, module: &mut ObjectModule, functions: &mut Functions) {
+        let pointer = module.target_config().pointer_type();
+        let puts = ast::Function {
+            name: "puts".to_string(),
+            parameters: vec![(String::from("string"), pointer)],
+            return_type: None,
+            body: vec![],
+        };
+
+        functions.insert(String::from("puts"), puts);
+
+        let sig = Signature {
+            params: vec![AbiParam::new(pointer)],
+            returns: vec![],
+            call_conv: isa::CallConv::SystemV,
+        };
+
+        // module
+        //     .declare_function("puts", Linkage::Import, &sig)
+        //     .unwrap();
+    }
+}
+
+impl JitCodegen {
     pub fn compile(&mut self, input: &str) -> Result<*const u8, String> {
         let functions = grammar::parser::file(input).map_err(|e| e.to_string())?;
         let mut map: Functions = HashMap::new();
@@ -88,7 +353,7 @@ impl Jit {
     fn translate_function(
         &mut self,
         params: Vec<(String, types::Type)>,
-        return_type: types::Type,
+        return_type: Option<types::Type>,
         statements: Vec<Expression>,
         functions: &Functions,
     ) -> Result<(), String> {
@@ -96,11 +361,9 @@ impl Jit {
             self.context.func.signature.params.push(AbiParam::new(*ty));
         }
 
-        self.context
-            .func
-            .signature
-            .returns
-            .push(AbiParam::new(return_type));
+        if let Some(ty) = return_type {
+            self.context.func.signature.returns.push(AbiParam::new(ty));
+        }
 
         let mut builder = FunctionBuilder::new(&mut self.context.func, &mut self.builder_context);
         let entry_block = builder.create_block();
@@ -135,13 +398,13 @@ impl Jit {
     }
 }
 
-struct FunctionTranslator<'a> {
+struct FunctionTranslator<'a, T: Module> {
     builder: FunctionBuilder<'a>,
     variables: HashMap<String, (Variable, types::Type)>,
-    module: &'a mut JITModule,
+    module: &'a mut T,
 }
 
-impl<'a> FunctionTranslator<'a> {
+impl<'a, T: Module> FunctionTranslator<'a, T> {
     fn translate_expression(&mut self, expression: Expression, functions: &Functions) -> Value {
         match expression {
             Expression::Literal(literal) => match literal {
@@ -271,7 +534,7 @@ impl<'a> FunctionTranslator<'a> {
                     return_value
                 } else {
                     self.builder.ins().return_(&[]);
-                    self.builder.ins().null(types::I32)
+                    Value::from_u32(0)
                 }
             }
             Expression::Assign(name, expr) => self.translate_assign(&name, *expr, functions),
@@ -288,6 +551,8 @@ impl<'a> FunctionTranslator<'a> {
             Expression::While(condition, loop_body) => {
                 self.translate_while_loop(*condition, loop_body, functions)
             }
+            Expression::Module(_) => Value::from_u32(0),
+            Expression::GlobalDataAddr(addr) => self.translate_global_data_address(addr),
             _ => panic!("Unknown expression"),
         }
     }
@@ -337,8 +602,14 @@ impl<'a> FunctionTranslator<'a> {
         functions: &Functions,
     ) -> Value {
         let mut signature = self.module.make_signature();
-        let func = functions.get(name).unwrap();
-        signature.returns.push(AbiParam::new(func.return_type));
+
+        let func = functions
+            .get(name)
+            .expect(&format!("Function '{}' not declared", name));
+
+        if let Some(ty) = func.return_type {
+            signature.returns.push(AbiParam::new(ty));
+        }
 
         for (i, _args) in func.parameters.iter().enumerate() {
             signature.params.push(AbiParam::new(func.parameters[i].1));
@@ -363,7 +634,12 @@ impl<'a> FunctionTranslator<'a> {
         }
 
         let call = self.builder.ins().call(local_callee, &arg_values);
-        self.builder.inst_results(call)[0]
+
+        if func.return_type.is_some() {
+            self.builder.inst_results(call)[0]
+        } else {
+            Value::from_u32(0)
+        }
     }
 
     fn translate_if_else(
@@ -505,7 +781,7 @@ impl<'a> FunctionTranslator<'a> {
     fn translate_global_data_address(&mut self, name: String) -> Value {
         let sym = self
             .module
-            .declare_data(&name, Linkage::Local, true, false)
+            .declare_data(&name, Linkage::Export, true, false)
             .expect("Could not declare reference in function");
 
         let local_id = self
@@ -671,7 +947,7 @@ fn find_expression_type(
     match expression {
         Expression::Literal(literal) => Some(literal.get_type()),
         Expression::Identifier(ident) => Some(variables.get(ident).unwrap().1),
-        Expression::Call(ref name, ref _exprs, _) => Some(functions.get(name).unwrap().return_type),
+        Expression::Call(ref name, ref _exprs, _) => functions.get(name).unwrap().return_type,
         Expression::Eq(_, _)
         | Expression::Ne(_, _)
         | Expression::Lt(_, _)

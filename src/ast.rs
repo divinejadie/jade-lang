@@ -49,6 +49,7 @@ pub enum Expression {
     Identifier(String),
     Declare(String, Box<Expression>, Option<Type>, bool),
     Assign(String, Box<Expression>),
+    Module(String),
     Eq(Box<Expression>, Box<Expression>),
     Ne(Box<Expression>, Box<Expression>),
     Lt(Box<Expression>, Box<Expression>),
@@ -74,7 +75,7 @@ pub enum Expression {
 pub struct Function {
     pub name: String,
     pub parameters: Vec<(String, Type)>,
-    pub return_type: Type,
+    pub return_type: Option<Type>,
     pub body: Vec<Expression>,
 }
 

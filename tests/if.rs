@@ -1,5 +1,5 @@
 mod common;
-use jadescript::Jit;
+use jadescript::JitCodegen;
 
 const IF_ELSE: &str = r#"
 fn main(a: i32) -> bool {
@@ -24,18 +24,18 @@ fn main(a: i32) -> bool {
 
 #[test]
 fn if_else() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<i32, bool>(&mut jit, IF_ELSE, 10).unwrap(),
+        common::run_code::<i32, bool>(&mut jit_codegen, IF_ELSE, 10).unwrap(),
         true
     );
 }
 
 #[test]
 fn if_else_expr_assign() {
-    let mut jit = Jit::default();
+    let mut jit_codegen = JitCodegen::default();
     assert_eq!(
-        common::run_code::<i32, bool>(&mut jit, IF_2, 10).unwrap(),
+        common::run_code::<i32, bool>(&mut jit_codegen, IF_2, 10).unwrap(),
         true
     );
 }
