@@ -551,7 +551,6 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             Expression::While(condition, loop_body) => {
                 self.translate_while_loop(*condition, loop_body, functions)
             }
-            Expression::Module(_) => Value::from_u32(0),
             Expression::GlobalDataAddr(addr) => self.translate_global_data_address(addr),
             _ => panic!("Unknown expression"),
         }

@@ -49,7 +49,6 @@ pub enum Expression {
     Identifier(String),
     Declare(String, Box<Expression>, Option<Type>, bool),
     Assign(String, Box<Expression>),
-    Module(String),
     Eq(Box<Expression>, Box<Expression>),
     Ne(Box<Expression>, Box<Expression>),
     Lt(Box<Expression>, Box<Expression>),
@@ -69,6 +68,25 @@ pub enum Expression {
     Call(String, Vec<Expression>, Option<Box<Expression>>),
     Return(Option<Box<Expression>>),
     GlobalDataAddr(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum SourceFileItem {
+    Module(String),
+    Function(Function),
+    Struct(Struct),
+}
+
+#[derive(Debug, Clone)]
+pub struct Struct {
+    pub name: String,
+    pub fields: Vec<StructField>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructField {
+    pub name: String,
+    pub ty: types::Type,
 }
 
 #[derive(Debug, Clone)]

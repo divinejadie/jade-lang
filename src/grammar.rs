@@ -16,13 +16,21 @@ peg::parser!(pub grammar mod_scan() for str {
 });
 
 peg::parser!(pub grammar parser() for str {
-    use crate::ast::{Expression, Function, TypeLiteral};
+    use crate::ast::{Expression, Function, TypeLiteral, SourceFileItem, Struct, StructField};
+
+    pub rule source_file() -> Vec<SourceFileItem>
+        = s:(source_file_item()** "\n") { s }
+
+    rule source_file_item() -> SourceFileItem
+        = m:module() { m }
+        / s:structure() { SourceFileItem::Struct(s) }
+        / f:function() { SourceFileItem::Function(f) }
 
     pub rule file() -> Vec<Function>
         = f:(function()** "\n") { f }
 
-    rule module() -> Expression
-        = [' ' | '\t' | '\n']* "module" _ i:identifier() { Expression::Module(i) }
+    rule module() -> SourceFileItem
+        = [' ' | '\t' | '\n']* "module" _ i:identifier() { SourceFileItem::Module(i) }
 
     rule function() -> Function
         = [' ' | '\t' | '\n']* "fn" _ name:identifier() _
@@ -33,6 +41,16 @@ peg::parser!(pub grammar parser() for str {
         body:statements()
         _ "}" "\n" _
         { Function { name, parameters, return_type, body}}
+
+    rule structure() -> Struct
+        = [' ' | '\t' | '\n']* "struct" _ name:identifier() _
+        "{" _ "\n"? _
+        fields:((f:struct_field() { f })** "\n")
+        "}" _ "\n"?
+        { Struct { name, fields } }
+
+    rule struct_field() -> StructField
+        = name:identifier() ":" _ ty:type_name() { StructField { name, ty } }
 
     rule statements() -> Vec<Expression>
         = s:(statement()*) { s }
