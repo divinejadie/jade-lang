@@ -1,0 +1,6 @@
+module linked
+
+fn main() {
+    double(16.0)
+    return
+}

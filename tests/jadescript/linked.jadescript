@@ -1,4 +1,3 @@
-
 fn double(input: f32) -> f32 {
     return input * 2.0
 }
