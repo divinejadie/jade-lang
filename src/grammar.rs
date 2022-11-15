@@ -26,9 +26,6 @@ peg::parser!(pub grammar parser() for str {
         / s:structure() { SourceFileItem::Struct(s) }
         / f:function() { SourceFileItem::Function(f) }
 
-    pub rule file() -> Vec<Function>
-        = f:(function()** "\n") { f }
-
     rule module() -> SourceFileItem
         = [' ' | '\t' | '\n']* "module" _ i:identifier() { SourceFileItem::Module(i) }
 

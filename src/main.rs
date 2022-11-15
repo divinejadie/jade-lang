@@ -1,4 +1,3 @@
-use jadescript::JitCodegen;
 use jadescript::*;
 
 use std::path::PathBuf;
