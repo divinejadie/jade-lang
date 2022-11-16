@@ -1,20 +1,6 @@
 use cranelift::codegen::ir::types::*;
 use cranelift::prelude::*;
 
-peg::parser!(pub grammar mod_scan() for str {
-    pub rule modules() -> Vec<String>
-        = [' ' | '\t' | '\n']* m:(p_mod()** "\n") _ quiet!{[_]*} { m }
-
-    rule p_mod() -> String
-        = "module" _ i:identifier() _ { i }
-
-    rule identifier() -> String
-        = quiet!{ n:$(['a'..='z' | 'A'..='Z' | '_']['a'..='z' | 'A'..='Z' | '0'..='9' | '_']*) { n.to_owned() } }
-        / expected!("identifier")
-
-    rule _() =  quiet!{[' ' | '\t']*}
-});
-
 peg::parser!(pub grammar parser() for str {
     use crate::ast::{Expression, Function, TypeLiteral, SourceFileItem, Struct, StructField};
 
