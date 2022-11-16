@@ -25,6 +25,12 @@ fn main(a: f32) -> f32 {
 }
 "#;
 
+const NO_RETURN: &str = r#"
+fn main() {
+	return
+}
+"#;
+
 #[test]
 fn function_call() {
     let mut jit_codegen = JitCodegen::default();
@@ -40,6 +46,15 @@ fn ufcs_method_call() {
     assert_eq!(
         common::run_code::<f32, f32>(&mut jit_codegen, CODE_2, 10.0).unwrap(),
         20.0
+    );
+}
+
+#[test]
+fn no_return() {
+    let mut jit_codegen = JitCodegen::default();
+    assert_eq!(
+        common::run_code::<(), ()>(&mut jit_codegen, NO_RETURN, ()).unwrap(),
+        ()
     );
 }
 
