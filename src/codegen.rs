@@ -1,6 +1,6 @@
 use super::ast;
 use super::ast::{BooleanExpr, Comparison, Expression, TypeLiteral};
-use crate::grammar;
+use crate::parser;
 
 use std::collections::HashMap;
 
@@ -62,8 +62,7 @@ fn compile_module<T: Module>(
     functions: &mut Functions,
     structs: &mut Structs,
 ) -> Result<(), String> {
-    let source: Vec<ast::SourceFileItem> =
-        grammar::parser::source_file(code).map_err(|e| e.to_string())?;
+    let source: Vec<ast::SourceFileItem> = parser::parse(code).map_err(|e| e.to_string())?;
 
     let mut module_functions = vec![];
     let mut declared_modules = vec![];
