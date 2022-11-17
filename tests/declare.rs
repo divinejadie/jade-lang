@@ -2,21 +2,19 @@ mod common;
 use jadescript::JitCodegen;
 
 const HINT: &str = r#"
-fn main() -> bool {
+fn main() -> bool:
 	let x: bool = false
 	return x
-}
 "#;
 
 const INFER: &str = r#"
-fn main() -> bool {
+fn main() -> bool:
 	let x = false
 	return x
-}
 "#;
 
 const MANY_DECL: &str = r#"
-fn main() -> bool {
+fn main() -> bool:
 	let x = false
 	let y = 32.0
 	let z = 32.0
@@ -35,7 +33,6 @@ fn main() -> bool {
 	let m = 32.0
 	let n = 32.0
 	return x
-}
 "#;
 
 #[test]

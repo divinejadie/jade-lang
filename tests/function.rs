@@ -2,33 +2,28 @@ mod common;
 use jadescript::JitCodegen;
 
 const CODE: &str = r#"
-fn double(x: f32) -> f32 {
+fn double(x: f32) -> f32:
 	return x * 2.0
-}
 
-fn main(a: f32) -> f32 {
+fn main(a: f32) -> f32:
 	let mut x: f32 = a
 	x = double(x)
 	return x
-}
 "#;
 
 const CODE_2: &str = r#"
-fn double(x: f32) -> f32 {
+fn double(x: f32) -> f32:
 	return x * 2.0
-}
 
-fn main(a: f32) -> f32 {
+fn main(a: f32) -> f32:
 	let mut x: f32 = a
 	x = x.double()
 	return x
-}
 "#;
 
 const NO_RETURN: &str = r#"
-fn main() {
+fn main():
 	return
-}
 "#;
 
 #[test]

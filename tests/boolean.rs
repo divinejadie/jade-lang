@@ -2,27 +2,23 @@ mod common;
 use jadescript::JitCodegen;
 
 const AND: &str = r#"
-fn main(a: bool, b: bool) -> bool {
+fn main(a: bool, b: bool) -> bool:
 	return a and b
-}
 "#;
 
 const OR: &str = r#"
-fn main(a: bool, b: bool) -> bool {
+fn main(a: bool, b: bool) -> bool:
 	return a or b
-}
 "#;
 
 const XOR: &str = r#"
-fn main(a: bool, b: bool) -> bool {
+fn main(a: bool, b: bool) -> bool:
 	return a xor b
-}
 "#;
 
 const NOT: &str = r#"
-fn main(a: bool) -> bool {
+fn main(a: bool) -> bool:
 	return not a
-}
 "#;
 
 #[test]

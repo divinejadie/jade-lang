@@ -1,25 +1,19 @@
 mod common;
 use jadescript::JitCodegen;
 
-const IF_ELSE: &str = r#"
-fn main(a: i32) -> bool {
-	if a >= 0 {
+const IF_ELSE: &str = r#"fn main(a: i32) -> bool:
+	if a >= 0:
 		return true
-	} else {
+	else:
 		return false
-	}
-}
 "#;
 
-const IF_2: &str = r#"
-fn main(a: i32) -> bool {
-	let x: bool = if a >= 0 {
+const IF_2: &str = r#"fn main(a: i32) -> bool:
+	let x: bool = if a >= 0:
 		true
-	} else {
+	else:
 		false
-	}
 	return x
-}
 "#;
 
 #[test]
