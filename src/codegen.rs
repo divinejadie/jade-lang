@@ -190,6 +190,7 @@ fn translate_function<T: Module>(
     }
 
     module.define_function(id, context).unwrap();
+    context.clear();
 
     Ok(())
 }
