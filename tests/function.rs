@@ -26,6 +26,17 @@ fn main():
 	return
 "#;
 
+const RECURSION: &str = r#"
+fn until_zero(num: i32) -> i32:
+	if num <= 0:
+		return num
+	else:
+		return until_zero(num - 1)
+
+fn main(input: i32) -> i32:
+	return until_zero(input)
+"#;
+
 #[test]
 fn function_call() {
     let mut jit_codegen = JitCodegen::default();
@@ -50,6 +61,15 @@ fn no_return() {
     assert_eq!(
         common::run_code::<(), ()>(&mut jit_codegen, NO_RETURN, ()).unwrap(),
         ()
+    );
+}
+
+#[test]
+fn recursion() {
+    let mut jit_codegen = JitCodegen::default();
+    assert_eq!(
+        common::run_code::<i32, i32>(&mut jit_codegen, RECURSION, 10).unwrap(),
+        0
     );
 }
 
