@@ -1,4 +1,5 @@
 use cranelift::prelude::*;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum TypeLiteral {
@@ -68,6 +69,7 @@ pub enum Expression {
     Call(String, Vec<Expression>, Option<Box<Expression>>),
     Return(Option<Box<Expression>>),
     GlobalDataAddr(String),
+    StructInstantiate(String, Vec<(String, Expression)>), // type, (member, value)
 }
 
 #[derive(Debug, Clone)]
@@ -80,13 +82,7 @@ pub enum SourceFileItem {
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub name: String,
-    pub fields: Vec<StructField>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StructField {
-    pub name: String,
-    pub ty: types::Type,
+    pub fields: HashMap<String, types::Type>,
 }
 
 #[derive(Debug, Clone)]

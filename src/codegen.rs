@@ -131,7 +131,7 @@ fn translate_function<T: Module>(
     module: &mut T,
     function: ast::Function,
     functions: &Functions,
-    _structs: &Structs,
+    structs: &Structs,
 ) -> Result<(), String> {
     let mut sig = module.make_signature();
     if let Some(ty) = function.return_type {
@@ -183,7 +183,7 @@ fn translate_function<T: Module>(
         }
 
         for expr in function.body {
-            trans.translate_expression(expr, functions);
+            trans.translate_expression(expr, functions, structs);
         }
         trans.builder.seal_all_blocks();
         trans.builder.finalize();
@@ -393,7 +393,12 @@ struct FunctionTranslator<'a, T: Module> {
 }
 
 impl<'a, T: Module> FunctionTranslator<'a, T> {
-    fn translate_expression(&mut self, expression: Expression, functions: &Functions) -> Value {
+    fn translate_expression(
+        &mut self,
+        expression: Expression,
+        functions: &Functions,
+        structs: &Structs,
+    ) -> Value {
         match expression {
             Expression::Literal(literal) => match literal {
                 TypeLiteral::F32(val) => self.builder.ins().f32const(Ieee32::with_float(val)),
@@ -412,8 +417,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     panic!("Cannot add two different types");
                 }
 
-                let lhs = self.translate_expression(*lhs, functions);
-                let rhs = self.translate_expression(*rhs, functions);
+                let lhs = self.translate_expression(*lhs, functions, structs);
+                let rhs = self.translate_expression(*rhs, functions, structs);
 
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
@@ -435,8 +440,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     panic!("Cannot add two different types");
                 }
 
-                let lhs = self.translate_expression(*lhs, functions);
-                let rhs = self.translate_expression(*rhs, functions);
+                let lhs = self.translate_expression(*lhs, functions, structs);
+                let rhs = self.translate_expression(*rhs, functions, structs);
 
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
@@ -458,8 +463,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     panic!("Cannot add two different types");
                 }
 
-                let lhs = self.translate_expression(*lhs, functions);
-                let rhs = self.translate_expression(*rhs, functions);
+                let lhs = self.translate_expression(*lhs, functions, structs);
+                let rhs = self.translate_expression(*rhs, functions, structs);
 
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
@@ -481,8 +486,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     panic!("Cannot add two different types");
                 }
 
-                let lhs = self.translate_expression(*lhs, functions);
-                let rhs = self.translate_expression(*rhs, functions);
+                let lhs = self.translate_expression(*lhs, functions, structs);
+                let rhs = self.translate_expression(*rhs, functions, structs);
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
                         types::F32 | types::F64 => self.builder.ins().fdiv(lhs, rhs),
@@ -496,28 +501,42 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 }
             }
             Expression::And(lhs, rhs) => {
-                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::And, functions)
+                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::And, functions, structs)
             }
             Expression::Or(lhs, rhs) => {
-                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::Or, functions)
+                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::Or, functions, structs)
             }
             Expression::Xor(lhs, rhs) => {
-                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::Xor, functions)
+                self.translate_boolean_expression(*lhs, *rhs, BooleanExpr::Xor, functions, structs)
             }
             Expression::Not(expr) => {
-                self.translate_boolean_unary(*expr, BooleanExpr::Not, functions)
+                self.translate_boolean_unary(*expr, BooleanExpr::Not, functions, structs)
             }
-            Expression::Eq(lhs, rhs) => self.translate_cmp(Comparison::Eq, *lhs, *rhs, functions),
-            Expression::Ne(lhs, rhs) => self.translate_cmp(Comparison::Ne, *lhs, *rhs, functions),
-            Expression::Gt(lhs, rhs) => self.translate_cmp(Comparison::Gt, *lhs, *rhs, functions),
-            Expression::Ge(lhs, rhs) => self.translate_cmp(Comparison::Ge, *lhs, *rhs, functions),
-            Expression::Lt(lhs, rhs) => self.translate_cmp(Comparison::Lt, *lhs, *rhs, functions),
-            Expression::Le(lhs, rhs) => self.translate_cmp(Comparison::Le, *lhs, *rhs, functions),
-            Expression::Call(name, args, base) => self.translate_call(&name, args, base, functions),
+            Expression::Eq(lhs, rhs) => {
+                self.translate_cmp(Comparison::Eq, *lhs, *rhs, functions, structs)
+            }
+            Expression::Ne(lhs, rhs) => {
+                self.translate_cmp(Comparison::Ne, *lhs, *rhs, functions, structs)
+            }
+            Expression::Gt(lhs, rhs) => {
+                self.translate_cmp(Comparison::Gt, *lhs, *rhs, functions, structs)
+            }
+            Expression::Ge(lhs, rhs) => {
+                self.translate_cmp(Comparison::Ge, *lhs, *rhs, functions, structs)
+            }
+            Expression::Lt(lhs, rhs) => {
+                self.translate_cmp(Comparison::Lt, *lhs, *rhs, functions, structs)
+            }
+            Expression::Le(lhs, rhs) => {
+                self.translate_cmp(Comparison::Le, *lhs, *rhs, functions, structs)
+            }
+            Expression::Call(name, args, base) => {
+                self.translate_call(&name, args, base, functions, structs)
+            }
             Expression::Return(val) => {
                 let return_value;
                 if let Some(expr) = val {
-                    return_value = self.translate_expression(*expr, functions);
+                    return_value = self.translate_expression(*expr, functions, structs);
                     self.builder.ins().return_(&[return_value]);
                     return_value
                 } else {
@@ -525,21 +544,83 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     Value::from_u32(0)
                 }
             }
-            Expression::Assign(name, expr) => self.translate_assign(&name, *expr, functions),
+            Expression::Assign(name, expr) => {
+                self.translate_assign(&name, *expr, functions, structs)
+            }
             Expression::Declare(name, expr, ty, _mutable) => {
-                self.translate_declare(&name, *expr, ty, functions)
+                self.translate_declare(&name, *expr, ty, functions, structs)
             }
             Expression::Identifier(name) => {
                 let var = self.variables.get(&name).expect("Variable not declared").0;
                 self.builder.use_var(var)
             }
             Expression::IfElse(condition, then_body, else_body) => {
-                self.translate_if_else(*condition, then_body, else_body, functions)
+                self.translate_if_else(*condition, then_body, else_body, functions, structs)
             }
             Expression::While(condition, loop_body) => {
-                self.translate_while_loop(*condition, loop_body, functions)
+                self.translate_while_loop(*condition, loop_body, functions, structs)
             }
             Expression::GlobalDataAddr(addr) => self.translate_global_data_address(addr),
+            Expression::StructInstantiate(ident, fields) => {
+                self.translate_struct_inst(&ident, fields, functions, structs)
+            }
+        }
+    }
+
+    fn translate_struct_inst(
+        &mut self,
+        struct_identifier: &str,
+        fields: Vec<(String, Expression)>,
+        functions: &Functions,
+        structs: &Structs,
+    ) -> Value {
+        // Check if there is a struct with given name with correct type
+        if let Some(struct_) = structs.get(struct_identifier) {
+            fields.iter().for_each(|(ident, expr)| {
+                let valid_name = struct_
+                    .fields
+                    .keys()
+                    .into_iter()
+                    .fold(false, |acc, x| *ident == *x || acc);
+                if !valid_name {
+                    panic!(
+                        "Instantiated struct member {} does not exist in {}",
+                        ident, struct_.name
+                    );
+                }
+
+                let expr_type = find_expression_type(expr, &self.variables, functions).unwrap();
+                if *struct_.fields.get(ident).unwrap() != expr_type {
+                    panic!("Instantiated struct member {} is of wrong type", ident);
+                }
+            });
+
+            // Allocate stack space for struct
+            // TODO: Proper padding
+            let struct_size = struct_
+                .fields
+                .iter()
+                .fold(0u32, |acc, (_, ty)| acc + ty.bytes());
+
+            let slot = self
+                .builder
+                .create_sized_stack_slot(codegen::ir::StackSlotData {
+                    kind: StackSlotKind::ExplicitSlot,
+                    size: struct_size,
+                });
+            let pointer = self.module.target_config().pointer_type();
+            let instance_pointer = self.builder.ins().stack_addr(pointer, slot, 0);
+
+            // Initialize members
+            for (name, expr) in fields {
+                let offset = struct_.fields.get(&name).unwrap().bytes();
+                let value = self.translate_expression(expr, functions, structs);
+                self.builder.ins().stack_store(value, slot, offset as i32);
+            }
+
+            return instance_pointer;
+        } else {
+            panic!("Struct with name {} not found", struct_identifier);
         }
     }
 
@@ -548,8 +629,9 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         name: &str,
         expression: Expression,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
-        let new_value = self.translate_expression(expression, functions);
+        let new_value = self.translate_expression(expression, functions, structs);
         let variable = self.variables.get(name).unwrap().0;
         self.builder.def_var(variable, new_value);
         new_value
@@ -561,6 +643,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         expression: Expression,
         type_hint: Option<types::Type>,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let ty;
 
@@ -575,7 +658,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.variables.insert(name.into(), (var, ty));
         self.builder.declare_var(var, ty);
 
-        let value = self.translate_expression(expression, functions);
+        let value = self.translate_expression(expression, functions, structs);
         self.builder.def_var(var, value);
         value
     }
@@ -586,6 +669,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         args: Vec<Expression>,
         base: Option<Box<Expression>>,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let mut signature = self.module.make_signature();
 
@@ -612,11 +696,11 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
 
         let mut arg_values = Vec::new();
         if let Some(b) = base {
-            arg_values.push(self.translate_expression(*b, functions));
+            arg_values.push(self.translate_expression(*b, functions, structs));
         }
 
         for arg in args {
-            arg_values.push(self.translate_expression(arg, functions));
+            arg_values.push(self.translate_expression(arg, functions, structs));
         }
 
         let call = self.builder.ins().call(local_callee, &arg_values);
@@ -634,9 +718,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         then_body: Vec<Expression>,
         else_body: Vec<Expression>,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let cond_type = find_expression_type(&cond, &self.variables, functions).unwrap();
-        let condition_value = self.translate_expression(cond, functions);
+        let condition_value = self.translate_expression(cond, functions, structs);
 
         let then_block = self.builder.create_block();
         let else_block = self.builder.create_block();
@@ -687,7 +772,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             if let Expression::Return(_) = expr {
                 has_return = true;
             }
-            return_value = self.translate_expression(expr, functions);
+            return_value = self.translate_expression(expr, functions, structs);
         }
 
         // If the body has a return then don't add another jump
@@ -709,7 +794,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             if let Expression::Return(_) = &expr {
                 has_else_return = true;
             }
-            else_return_value = self.translate_expression(expr, functions);
+            else_return_value = self.translate_expression(expr, functions, structs);
         }
 
         // If the body has a return then don't add another jump
@@ -730,6 +815,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         condition: Expression,
         loop_body: Vec<Expression>,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let header_block = self.builder.create_block();
         let body_block = self.builder.create_block();
@@ -743,7 +829,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             panic!("While loop condition must be a boolean expression");
         }
 
-        let condition_value = self.translate_expression(condition, functions);
+        let condition_value = self.translate_expression(condition, functions, structs);
         self.builder.ins().brz(condition_value, exit_block, &[]);
         self.builder.ins().jump(body_block, &[]);
 
@@ -751,7 +837,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.builder.seal_block(body_block);
 
         for expr in loop_body {
-            self.translate_expression(expr, functions);
+            self.translate_expression(expr, functions, structs);
         }
 
         self.builder.ins().jump(header_block, &[]);
@@ -784,6 +870,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         rhs: Expression,
         op: BooleanExpr,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let lhs_ty = find_expression_type(&lhs, &self.variables, functions);
         let rhs_ty = find_expression_type(&rhs, &self.variables, functions);
@@ -798,8 +885,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             panic!("Binary boolean expressions type do not match");
         }
 
-        let rhs = self.translate_expression(rhs, functions);
-        let lhs = self.translate_expression(lhs, functions);
+        let rhs = self.translate_expression(rhs, functions, structs);
+        let lhs = self.translate_expression(lhs, functions, structs);
 
         match op {
             BooleanExpr::Or => self.builder.ins().bor(rhs, lhs),
@@ -814,6 +901,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         expr: Expression,
         op: BooleanExpr,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let ty = find_expression_type(&expr, &self.variables, functions);
 
@@ -823,7 +911,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             }
         }
 
-        let expr = self.translate_expression(expr, functions);
+        let expr = self.translate_expression(expr, functions, structs);
 
         match op {
             BooleanExpr::Not => self.builder.ins().bnot(expr),
@@ -836,6 +924,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         lhs: Expression,
         rhs: Expression,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
         let ty_l = find_expression_type(&lhs, &mut self.variables, functions);
         let ty_r = find_expression_type(&rhs, &mut self.variables, functions);
@@ -867,8 +956,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         };
 
         match cmp {
-            Left(floatcc) => self.translate_fcmp(floatcc, lhs, rhs, functions),
-            Right(intcc) => self.translate_icmp(intcc, lhs, rhs, functions),
+            Left(floatcc) => self.translate_fcmp(floatcc, lhs, rhs, functions, structs),
+            Right(intcc) => self.translate_icmp(intcc, lhs, rhs, functions, structs),
         }
     }
 
@@ -878,9 +967,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         lhs: Expression,
         rhs: Expression,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
-        let lhs = self.translate_expression(lhs, functions);
-        let rhs = self.translate_expression(rhs, functions);
+        let lhs = self.translate_expression(lhs, functions, structs);
+        let rhs = self.translate_expression(rhs, functions, structs);
         self.builder.ins().icmp(cmp, lhs, rhs)
     }
     fn translate_fcmp(
@@ -889,9 +979,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         lhs: Expression,
         rhs: Expression,
         functions: &Functions,
+        structs: &Structs,
     ) -> Value {
-        let lhs = self.translate_expression(lhs, functions);
-        let rhs = self.translate_expression(rhs, functions);
+        let lhs = self.translate_expression(lhs, functions, structs);
+        let rhs = self.translate_expression(rhs, functions, structs);
         self.builder.ins().fcmp(cmp, lhs, rhs)
     }
 

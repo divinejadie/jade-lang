@@ -12,7 +12,7 @@ pub fn parse(code: &str) -> Result<Vec<SourceFileItem>, String> {
 }
 
 peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
-    use crate::ast::{Expression, Function, SourceFileItem, Struct, StructField};
+    use crate::ast::{Expression, Function, SourceFileItem, Struct};
     use crate::lexer::Token;
 
     pub rule source_file() -> Vec<SourceFileItem>
@@ -36,12 +36,20 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
 
     rule structure() -> Struct
         = [Token::NewLine]* [Token::Struct] _ name:identifier() _ [Token::Colon] _ [Token::NewLine]
-        [Token::Indent] fields:((f:struct_field() { f })** [Token::NewLine])
+        [Token::Indent] fields:((f:struct_field() { f })** ([Token::Comma] _ [Token::NewLine]))
         [Token::NewLine] [Token::Dedent]
-        { Struct { name, fields } }
+        {
+            use std::collections::HashMap;
+            let mut map = HashMap::<String, types::Type>::new();
+            for field in fields {
+                map.insert(field.0, field.1);
+            }
 
-    rule struct_field() -> StructField
-        = name:identifier() [Token::Colon] _ ty:type_name() { StructField { name, ty } }
+            Struct { name, fields: map }
+        }
+
+    rule struct_field() -> (String, types::Type)
+        = name:identifier() [Token::Colon] _ ty:type_name() { (name, ty) }
 
     rule block() -> Vec<Expression>
         = [Token::NewLine] [Token::Indent] s:statements() [Token::Dedent] { s }
@@ -58,8 +66,18 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         / assignment()
         / if_else()
         / while_loop()
+        / struct_inst()
         / returnexpr()
         / binary_op()
+
+    rule struct_inst() -> Expression
+        = i:identifier() _ [Token::Colon] _ [Token::NewLine]
+        [Token::Indent] members:((f:struct_inst_member() { (f.0, f.1) })** ([Token::Comma]? [Token::NewLine]))
+        [Token::NewLine] [Token::Dedent]
+        { Expression::StructInstantiate(i, members) }
+
+    rule struct_inst_member() -> (String, Expression)
+        = name:identifier() [Token::Colon] _ e:expression() { (name, e) }
 
     rule if_else() -> Expression
         = [Token::If] _ e:expression() _ [Token::Colon]
