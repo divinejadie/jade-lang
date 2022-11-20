@@ -1,7 +1,5 @@
 use crate::ast::SourceFileItem;
 use crate::lexer::*;
-use cranelift::codegen::ir::types::*;
-use cranelift::prelude::*;
 
 pub fn parse(code: &str) -> Result<Vec<SourceFileItem>, String> {
     let tokens = lexer::lex(code).map_err(|e| e.to_string())?;
@@ -12,6 +10,7 @@ pub fn parse(code: &str) -> Result<Vec<SourceFileItem>, String> {
 }
 
 peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
+    use crate::ast;
     use crate::ast::{Expression, Function, SourceFileItem, Struct};
     use crate::lexer::Token;
 
@@ -40,7 +39,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         [Token::NewLine] [Token::Dedent]
         {
             use std::collections::HashMap;
-            let mut map = HashMap::<String, types::Type>::new();
+            let mut map = HashMap::<String, ast::Type>::new();
             for field in fields {
                 map.insert(field.0, field.1);
             }
@@ -48,7 +47,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
             Struct { name, fields: map }
         }
 
-    rule struct_field() -> (String, types::Type)
+    rule struct_field() -> (String, ast::Type)
         = name:identifier() [Token::Colon] _ ty:type_name() { (name, ty) }
 
     rule block() -> Vec<Expression>
@@ -117,11 +116,11 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         a:@ _ [Token::Xor] _ b:(@) { Expression::Xor(Box::new(a), Box::new(b)) }
         _ [Token::Not] _ e:expression() { Expression::Not(Box::new(e)) }
         --
-        a:@ [Token::Period] i:identifier() _ [Token::OpenParenthesis] args:((_ b:expression() _ {b}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, Some(Box::new(a))) }
-        --
         l:literal() { l }
         i:identifier() _ [Token::OpenParenthesis] args:((_ e:expression() _ {e}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, None) }
         i:identifier() { Expression::Identifier(i) }
+        --
+        a:@ [Token::Period] i:identifier() _ [Token::OpenParenthesis] args:((_ b:expression() _ {b}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, Some(Box::new(a))) }
     }
 
     rule returnexpr() -> Expression
@@ -139,17 +138,17 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         [Token::Ampersand] i:identifier() { Expression::GlobalDataAddr(i) }
     }
 
-    rule type_name() -> Type
+    rule type_name() -> ast::Type
         = [Token::Identifier(i)] {
             match i.as_str() {
-                "f32" => types::F32,
-                "f64" => types::F64,
-                "i8" => types::I8,
-                "i16" => types::I16,
-                "i32" => types::I32,
-                "i64" => types::I64,
-                "bool" => types::B8,
-                _ => types::INVALID
+                "f32" => ast::Type::F32,
+                "f64" => ast::Type::F64,
+                "i8" => ast::Type::I8,
+                "i16" => ast::Type::I16,
+                "i32" => ast::Type::I32,
+                "i64" => ast::Type::I64,
+                "bool" => ast::Type::Bool,
+                _ => ast::Type::Struct(i.clone()),
             }
         }
         / expected!("type name")
@@ -157,4 +156,3 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
 
     rule _() =  quiet!{[Token::Space]*}
 });
-

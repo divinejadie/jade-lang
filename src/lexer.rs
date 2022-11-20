@@ -208,4 +208,3 @@ peg::parser!(pub grammar lexer() for str {
         / "true" { Token::Literal(TypeLiteral::Bool(true)) }
         / "false" { Token::Literal(TypeLiteral::Bool(false)) }
 });
-

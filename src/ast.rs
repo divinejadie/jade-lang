@@ -1,4 +1,5 @@
-use cranelift::prelude::*;
+use cranelift::prelude::isa::TargetIsa;
+use cranelift::prelude::types;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -12,16 +13,59 @@ pub enum TypeLiteral {
     I64(i64),
 }
 
-impl TypeLiteral {
-    pub fn get_type(&self) -> types::Type {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    Struct(String),
+    Pointer,
+    Bool,
+    F32,
+    F64,
+    I8,
+    I16,
+    I32,
+    I64,
+}
+
+impl Type {
+    pub fn to_ir(&self, isa: &dyn TargetIsa) -> types::Type {
         match self {
-            TypeLiteral::Bool(_) => types::B8,
-            TypeLiteral::F32(_) => types::F32,
-            TypeLiteral::F64(_) => types::F64,
-            TypeLiteral::I8(_) => types::I8,
-            TypeLiteral::I16(_) => types::I16,
-            TypeLiteral::I32(_) => types::I32,
-            TypeLiteral::I64(_) => types::I64,
+            Type::Struct(_) => isa.pointer_type(),
+            Type::Pointer => isa.pointer_type(),
+            Type::Bool => types::B8,
+            Type::F32 => types::F32,
+            Type::F64 => types::F64,
+            Type::I8 => types::I8,
+            Type::I16 => types::I16,
+            Type::I32 => types::I32,
+            Type::I64 => types::I64,
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            Type::F32 | Type::F64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
+            _ => false,
+        }
+    }
+}
+
+impl TypeLiteral {
+    pub fn get_type(&self) -> Type {
+        match self {
+            TypeLiteral::Bool(_) => Type::Bool,
+            TypeLiteral::F32(_) => Type::F32,
+            TypeLiteral::F64(_) => Type::F64,
+            TypeLiteral::I8(_) => Type::I8,
+            TypeLiteral::I16(_) => Type::I16,
+            TypeLiteral::I32(_) => Type::I32,
+            TypeLiteral::I64(_) => Type::I64,
         }
     }
 }
@@ -82,7 +126,7 @@ pub enum SourceFileItem {
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub name: String,
-    pub fields: HashMap<String, types::Type>,
+    pub fields: HashMap<String, Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,4 +136,3 @@ pub struct Function {
     pub return_type: Option<Type>,
     pub body: Vec<Expression>,
 }
-

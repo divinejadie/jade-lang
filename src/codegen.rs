@@ -135,11 +135,11 @@ fn translate_function<T: Module>(
 ) -> Result<(), String> {
     let mut sig = module.make_signature();
     if let Some(ty) = function.return_type {
-        sig.returns.push(AbiParam::new(ty));
+        sig.returns.push(AbiParam::new(ty.to_ir(module.isa())));
     }
 
     for param in &function.parameters {
-        sig.params.push(AbiParam::new(param.1));
+        sig.params.push(AbiParam::new(param.1.to_ir(module.isa())));
     }
 
     let linkage = Linkage::Local;
@@ -179,8 +179,8 @@ fn translate_function<T: Module>(
         for (i, (name, ty)) in function.parameters.iter().enumerate() {
             let val = trans.builder.block_params(entry_block)[i];
             let var = Variable::new(trans.variables.len());
-            trans.variables.insert(name.into(), (var, *ty));
-            trans.builder.declare_var(var, *ty);
+            trans.variables.insert(name.into(), (var, ty.clone()));
+            trans.builder.declare_var(var, ty.to_ir(trans.module.isa()));
             trans.builder.def_var(var, val);
         }
 
@@ -222,7 +222,7 @@ fn insert_libc_functions(module: &mut ObjectModule, functions: &mut Functions) {
 
     let puts = ast::Function {
         name: "puts".to_string(),
-        parameters: vec![(String::from("string"), pointer)],
+        parameters: vec![(String::from("string"), ast::Type::Pointer)],
         return_type: None,
         body: vec![],
     };
@@ -390,7 +390,7 @@ impl JitCodegen {
 
 struct FunctionTranslator<'a, T: Module> {
     builder: FunctionBuilder<'a>,
-    variables: HashMap<String, (Variable, types::Type)>,
+    variables: HashMap<String, (Variable, ast::Type)>,
     functions: &'a Functions,
     structs: &'a Structs,
     module: &'a mut T,
@@ -421,8 +421,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
 
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
-                        types::F32 | types::F64 => self.builder.ins().fadd(lhs, rhs),
-                        types::I8 | types::I16 | types::I32 | types::I64 => {
+                        ast::Type::F32 | ast::Type::F64 => self.builder.ins().fadd(lhs, rhs),
+                        ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
                             self.builder.ins().iadd(lhs, rhs)
                         }
                         _ => panic!("Cannot add this type"),
@@ -444,8 +444,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
 
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
-                        types::F32 | types::F64 => self.builder.ins().fsub(lhs, rhs),
-                        types::I8 | types::I16 | types::I32 | types::I64 => {
+                        ast::Type::F32 | ast::Type::F64 => self.builder.ins().fsub(lhs, rhs),
+                        ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
                             self.builder.ins().isub(lhs, rhs)
                         }
                         _ => panic!("Cannot subtract this type"),
@@ -467,8 +467,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
 
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
-                        types::F32 | types::F64 => self.builder.ins().fmul(lhs, rhs),
-                        types::I8 | types::I16 | types::I32 | types::I64 => {
+                        ast::Type::F32 | ast::Type::F64 => self.builder.ins().fmul(lhs, rhs),
+                        ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
                             self.builder.ins().imul(lhs, rhs)
                         }
                         _ => panic!("Cannot subtract this type"),
@@ -489,8 +489,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 let rhs = self.translate_expression(*rhs);
                 if let Some(expr_type) = ty_lhs {
                     match expr_type {
-                        types::F32 | types::F64 => self.builder.ins().fdiv(lhs, rhs),
-                        types::I8 | types::I16 | types::I32 | types::I64 => {
+                        ast::Type::F32 | ast::Type::F64 => self.builder.ins().fdiv(lhs, rhs),
+                        ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
                             self.builder.ins().udiv(lhs, rhs)
                         }
                         _ => panic!("Cannot divide this type"),
@@ -547,6 +547,29 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             }
         }
     }
+    //
+    // fn resolve_identifier(&mut self, ident: &str) -> Value {
+    //     let var = self
+    //         .variables
+    //         .get(ident)
+    //         .expect(&format!("Local variable with name {} not found", ident))
+    //         .0;
+    //     let access = ident.split(".");
+    //
+    //     if ident.contains(".") {
+    //         // Struct member access
+    //
+    //         let pointer = self.builder.use_var(ident);
+    //         self.builder
+    //             .ins()
+    //             .load(self.structs.get(), MemFlags, p, Offset)
+    //     } else {
+    //         // Local variable
+    //
+    //         let value = self.builder.use_var(var);
+    //     }
+    //     value
+    // }
 
     fn translate_struct_inst(
         &mut self,
@@ -577,10 +600,9 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
 
             // Allocate stack space for struct
             // TODO: Proper padding
-            let struct_size = struct_
-                .fields
-                .iter()
-                .fold(0u32, |acc, (_, ty)| acc + ty.bytes());
+            let struct_size = struct_.fields.iter().fold(0u32, |acc, (_, ty)| {
+                acc + ty.to_ir(self.module.isa()).bytes()
+            });
 
             let slot = self
                 .builder
@@ -596,7 +618,12 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             for (name, expr) in fields {
                 let value = self.translate_expression(expr);
                 self.builder.ins().stack_store(value, slot, offset as i32);
-                offset = struct_.fields.get(&name).unwrap().bytes();
+                offset = struct_
+                    .fields
+                    .get(&name)
+                    .unwrap()
+                    .to_ir(self.module.isa())
+                    .bytes();
             }
 
             return instance_pointer;
@@ -616,7 +643,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         &mut self,
         name: &str,
         expression: Expression,
-        type_hint: Option<types::Type>,
+        type_hint: Option<ast::Type>,
     ) -> Value {
         let ty;
 
@@ -628,8 +655,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         }
 
         let var = Variable::new(self.variables.len());
-        self.variables.insert(name.into(), (var, ty));
-        self.builder.declare_var(var, ty);
+        self.variables.insert(name.into(), (var, ty.clone()));
+        self.builder.declare_var(var, ty.to_ir(self.module.isa()));
 
         let value = self.translate_expression(expression);
         self.builder.def_var(var, value);
@@ -649,12 +676,16 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             .get(name)
             .expect(&format!("Function '{}' not declared", name));
 
-        if let Some(ty) = func.return_type {
-            signature.returns.push(AbiParam::new(ty));
+        if let Some(ty) = &func.return_type {
+            signature
+                .returns
+                .push(AbiParam::new(ty.to_ir(self.module.isa())));
         }
 
         for (i, _args) in func.parameters.iter().enumerate() {
-            signature.params.push(AbiParam::new(func.parameters[i].1));
+            signature
+                .params
+                .push(AbiParam::new(func.parameters[i].1.to_ir(self.module.isa())));
         }
 
         let callee = self
@@ -697,7 +728,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         let else_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
 
-        if cond_type != types::B8 {
+        if cond_type != ast::Type::Bool {
             unimplemented!("If condition must be a boolean expression");
         }
 
@@ -713,13 +744,17 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             self.functions,
         );
 
-        if else_ty.is_some() && then_ty.is_some() && then_ty.unwrap() != else_ty.unwrap() {
-            panic!("If body and else body do not return the same type");
-        }
+        if let Some(l) = &then_ty &&
+            let Some(r) = &else_ty {
+                if l != r {
+                 panic!("If body and else body do not return the same type");
+                }
+            }
 
         // Blocks return the last expression
-        if let Some(ty) = then_ty {
-            self.builder.append_block_param(merge_block, ty);
+        if let Some(ty) = &then_ty {
+            self.builder
+                .append_block_param(merge_block, ty.to_ir(self.module.isa()));
         } else {
             self.builder.append_block_param(merge_block, types::I32);
         }
@@ -731,7 +766,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.builder.seal_block(then_block);
 
         let mut return_value;
-        if let Some(ty) = then_ty {
+        if let Some(ty) = &then_ty {
             return_value = self.default_value(ty);
         } else {
             return_value = self.builder.ins().iconst(types::I32, 0);
@@ -754,7 +789,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.builder.seal_block(else_block);
 
         let mut else_return_value;
-        if let Some(ty) = then_ty {
+        if let Some(ty) = &then_ty {
             else_return_value = self.default_value(ty);
         } else {
             else_return_value = self.builder.ins().iconst(types::I32, 0);
@@ -789,7 +824,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.builder.switch_to_block(header_block);
 
         let condition_ty = find_expression_type(&condition, &self.variables, self.functions);
-        if condition_ty.unwrap() != types::B8 {
+        if condition_ty.unwrap() != ast::Type::Bool {
             panic!("While loop condition must be a boolean expression");
         }
 
@@ -840,7 +875,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         if let Some(lt) = lhs_ty
             && let Some(rt) = rhs_ty
         {
-            if lt != types::B8 || rt != types::B8 {
+            if lt != ast::Type::Bool || rt != ast::Type::Bool {
                 panic!("Binary boolean expression must use boolean type");
             }
         } else {
@@ -862,7 +897,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         let ty = find_expression_type(&expr, &self.variables, self.functions);
 
         if let Some(expr_ty) = ty {
-            if expr_ty != types::B8 {
+            if expr_ty != ast::Type::Bool {
                 panic!("Unary boolean expression must use boolean type");
             }
         }
@@ -875,15 +910,15 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         }
     }
     fn translate_cmp(&mut self, comp: Comparison, lhs: Expression, rhs: Expression) -> Value {
-        let ty_l = find_expression_type(&lhs, &self.variables, self.functions);
-        let ty_r = find_expression_type(&rhs, &self.variables, self.functions);
+        let ty_l = find_expression_type(&lhs, &self.variables, self.functions).unwrap();
+        let ty_r = find_expression_type(&rhs, &self.variables, self.functions).unwrap();
 
         if ty_l != ty_r {
             panic!("Expression arms type do not match");
         }
 
         let cmp = {
-            if ty_l.unwrap() == types::F32 || ty_l.unwrap() == types::F64 {
+            if ty_l.is_float() {
                 match comp {
                     Comparison::Eq => Either::Left(FloatCC::Equal),
                     Comparison::Ne => Either::Left(FloatCC::NotEqual),
@@ -921,15 +956,15 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.builder.ins().fcmp(cmp, lhs, rhs)
     }
 
-    fn default_value(&mut self, ty: types::Type) -> Value {
+    fn default_value(&mut self, ty: &ast::Type) -> Value {
         match ty {
-            types::F32 => self.builder.ins().f32const(0.0),
-            types::F64 => self.builder.ins().f64const(0.0),
-            types::I8 => self.builder.ins().iconst(types::I8, 0),
-            types::I16 => self.builder.ins().iconst(types::I16, 0),
-            types::I32 => self.builder.ins().iconst(types::I32, 0),
-            types::I64 => self.builder.ins().iconst(types::I64, 0),
-            types::B8 => self.builder.ins().bconst(types::B8, false),
+            ast::Type::F32 => self.builder.ins().f32const(0.0),
+            ast::Type::F64 => self.builder.ins().f64const(0.0),
+            ast::Type::I8 => self.builder.ins().iconst(types::I8, 0),
+            ast::Type::I16 => self.builder.ins().iconst(types::I16, 0),
+            ast::Type::I32 => self.builder.ins().iconst(types::I32, 0),
+            ast::Type::I64 => self.builder.ins().iconst(types::I64, 0),
+            ast::Type::Bool => self.builder.ins().bconst(types::B8, false),
             _ => unimplemented!(),
         }
     }
@@ -937,15 +972,15 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
 
 fn find_expression_type(
     expression: &Expression,
-    variables: &HashMap<String, (Variable, types::Type)>,
+    variables: &HashMap<String, (Variable, ast::Type)>,
     functions: &Functions,
-) -> Option<types::Type> {
+) -> Option<ast::Type> {
     // All literals are of same type
-    let binary = |rhs: &Box<Expression>, lhs: &Box<Expression>| -> Option<types::Type> {
+    let binary = |rhs: &Box<Expression>, lhs: &Box<Expression>| -> Option<ast::Type> {
         let left = find_expression_type(lhs, variables, functions);
         let right = find_expression_type(rhs, variables, functions);
-        if let Some(l) = left
-            && let Some(r) = right
+        if let Some(l) = &left
+            && let Some(r) = &right
         {
             if l == r {
                 return left;
@@ -958,8 +993,10 @@ fn find_expression_type(
     };
     match expression {
         Expression::Literal(literal) => Some(literal.get_type()),
-        Expression::Identifier(ident) => Some(variables.get(ident).unwrap().1),
-        Expression::Call(ref name, ref _exprs, _) => functions.get(name).unwrap().return_type,
+        Expression::Identifier(ident) => Some(variables.get(ident).unwrap().1.clone()),
+        Expression::Call(ref name, ref _exprs, _) => {
+            functions.get(name).unwrap().return_type.clone()
+        }
         Expression::Eq(_, _)
         | Expression::Ne(_, _)
         | Expression::Lt(_, _)
@@ -969,14 +1006,14 @@ fn find_expression_type(
         | Expression::And(_, _)
         | Expression::Or(_, _)
         | Expression::Xor(_, _)
-        | Expression::Not(_) => Some(types::B8),
+        | Expression::Not(_) => Some(ast::Type::Bool),
         Expression::Add(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Sub(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Mul(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Div(ref lhs, ref rhs) => binary(lhs, rhs),
         Expression::Assign(_, _) => None,
         Expression::Return(ref _expr) => None,
+        Expression::StructInstantiate(ident, _) => Some(ast::Type::Struct(ident.clone())),
         _ => None,
     }
 }
-
