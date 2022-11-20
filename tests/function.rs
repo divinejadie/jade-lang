@@ -40,7 +40,7 @@ fn main(input: i32) -> i32:
 const OUT_OF_ORDER: &str = r#"
 fn main(a: f32) -> f32:
 	let mut x: f32 = a
-	x = x.double()
+	x = double(x)
 	return x
 
 fn double(x: f32) -> f32:
@@ -91,4 +91,3 @@ fn out_of_order() {
         20.0
     );
 }
-
