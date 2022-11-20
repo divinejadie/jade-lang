@@ -612,10 +612,11 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             let instance_pointer = self.builder.ins().stack_addr(pointer, slot, 0);
 
             // Initialize members
+            let mut offset = 0;
             for (name, expr) in fields {
-                let offset = struct_.fields.get(&name).unwrap().bytes();
                 let value = self.translate_expression(expr, functions, structs);
                 self.builder.ins().stack_store(value, slot, offset as i32);
+                offset = struct_.fields.get(&name).unwrap().bytes();
             }
 
             return instance_pointer;
