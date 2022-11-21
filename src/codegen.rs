@@ -612,9 +612,6 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     offset,
                 );
 
-                // TODO: get stack slot (store hashmap in self?) + stack load, use expr -> pointer
-                // as base
-
                 return val;
             }
         }
