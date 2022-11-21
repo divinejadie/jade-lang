@@ -1,6 +1,6 @@
 use cranelift::prelude::isa::TargetIsa;
 use cranelift::prelude::types;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub enum TypeLiteral {
@@ -113,7 +113,7 @@ pub enum Expression {
     Call(String, Vec<Expression>, Option<Box<Expression>>),
     Return(Option<Box<Expression>>),
     GlobalDataAddr(String),
-    StructInstantiate(String, Vec<(String, Expression)>), // type, (member, value)
+    StructInstantiate(String, Vec<(String, Expression)>), // type, (member, value),
 }
 
 #[derive(Debug, Clone)]
@@ -126,7 +126,7 @@ pub enum SourceFileItem {
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub name: String,
-    pub fields: HashMap<String, Type>,
+    pub fields: BTreeMap<String, Type>,
 }
 
 #[derive(Debug, Clone)]

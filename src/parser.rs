@@ -38,8 +38,8 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         [Token::Indent] fields:((f:struct_field() { f })** ([Token::Comma] _ [Token::NewLine]))
         [Token::NewLine] [Token::Dedent]
         {
-            use std::collections::HashMap;
-            let mut map = HashMap::<String, ast::Type>::new();
+            use std::collections::BTreeMap;
+            let mut map = BTreeMap::<String, ast::Type>::new();
             for field in fields {
                 map.insert(field.0, field.1);
             }
