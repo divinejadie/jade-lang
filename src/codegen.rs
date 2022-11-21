@@ -4,6 +4,7 @@ use crate::parser;
 
 use std::collections::HashMap;
 
+use cranelift::codegen::ir::StackSlot;
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataContext, FuncId, Linkage, Module};
@@ -171,6 +172,7 @@ fn translate_function<T: Module>(
         let mut trans = FunctionTranslator {
             builder,
             variables,
+            stack_slots: HashMap::new(),
             functions,
             structs,
             module,
@@ -391,6 +393,7 @@ impl JitCodegen {
 struct FunctionTranslator<'a, T: Module> {
     builder: FunctionBuilder<'a>,
     variables: HashMap<String, (Variable, ast::Type)>,
+    stack_slots: HashMap<String, StackSlot>,
     functions: &'a Functions,
     structs: &'a Structs,
     module: &'a mut T,
@@ -409,8 +412,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 _ => Value::from_u32(0),
             },
             Expression::Add(lhs, rhs) => {
-                let ty_lhs = find_expression_type(&lhs, &self.variables, self.functions);
-                let ty_rhs = find_expression_type(&rhs, &self.variables, self.functions);
+                let ty_lhs =
+                    find_expression_type(&lhs, &self.variables, self.functions, self.structs);
+                let ty_rhs =
+                    find_expression_type(&rhs, &self.variables, self.functions, self.structs);
 
                 if ty_lhs != ty_rhs {
                     panic!("Cannot add two different types");
@@ -432,8 +437,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 }
             }
             Expression::Sub(lhs, rhs) => {
-                let ty_lhs = find_expression_type(&lhs, &self.variables, self.functions);
-                let ty_rhs = find_expression_type(&rhs, &self.variables, self.functions);
+                let ty_lhs =
+                    find_expression_type(&lhs, &self.variables, self.functions, self.structs);
+                let ty_rhs =
+                    find_expression_type(&rhs, &self.variables, self.functions, self.structs);
 
                 if ty_lhs != ty_rhs {
                     panic!("Cannot add two different types");
@@ -455,8 +462,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 }
             }
             Expression::Mul(lhs, rhs) => {
-                let ty_lhs = find_expression_type(&lhs, &self.variables, self.functions);
-                let ty_rhs = find_expression_type(&rhs, &self.variables, self.functions);
+                let ty_lhs =
+                    find_expression_type(&lhs, &self.variables, self.functions, self.structs);
+                let ty_rhs =
+                    find_expression_type(&rhs, &self.variables, self.functions, self.structs);
 
                 if ty_lhs != ty_rhs {
                     panic!("Cannot add two different types");
@@ -478,8 +487,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 }
             }
             Expression::Div(lhs, rhs) => {
-                let ty_lhs = find_expression_type(&lhs, &self.variables, self.functions);
-                let ty_rhs = find_expression_type(&rhs, &self.variables, self.functions);
+                let ty_lhs =
+                    find_expression_type(&lhs, &self.variables, self.functions, self.structs);
+                let ty_rhs =
+                    find_expression_type(&rhs, &self.variables, self.functions, self.structs);
 
                 if ty_lhs != ty_rhs {
                     panic!("Cannot add two different types");
@@ -545,31 +556,70 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             Expression::StructInstantiate(ident, fields) => {
                 self.translate_struct_inst(&ident, fields)
             }
+            Expression::StructMember(expr, member_ident) => {
+                self.translate_struct_member(&member_ident, *expr)
+            }
         }
     }
-    //
-    // fn resolve_identifier(&mut self, ident: &str) -> Value {
-    //     let var = self
-    //         .variables
-    //         .get(ident)
-    //         .expect(&format!("Local variable with name {} not found", ident))
-    //         .0;
-    //     let access = ident.split(".");
-    //
-    //     if ident.contains(".") {
-    //         // Struct member access
-    //
-    //         let pointer = self.builder.use_var(ident);
-    //         self.builder
-    //             .ins()
-    //             .load(self.structs.get(), MemFlags, p, Offset)
-    //     } else {
-    //         // Local variable
-    //
-    //         let value = self.builder.use_var(var);
-    //     }
-    //     value
-    // }
+
+    fn translate_struct_member(&mut self, member_ident: &str, expression: Expression) -> Value {
+        let expr_ty =
+            find_expression_type(&expression, &self.variables, &self.functions, self.structs);
+
+        if let Some(ty) = expr_ty {
+            if let ast::Type::Struct(name) = &ty {
+                let struct_def = self
+                    .structs
+                    .get(name)
+                    .expect(&format!("Struct with name '{}' does not exist", name));
+
+                let member_type = struct_def.fields.get(member_ident).expect(&format!(
+                    "Struct {} does not have a member variable '{}'",
+                    &struct_def.name, member_ident
+                ));
+
+                let mut offsets = struct_def
+                    .fields
+                    .iter()
+                    .map(|field| field.1.to_ir(self.module.isa()).bytes() as i32)
+                    .collect::<Vec<_>>();
+                // Adjust list to represent offsets instead of sizes
+                offsets.insert(0, 0i32);
+                offsets.pop();
+
+                let idx = struct_def
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .find_map(
+                        |(idx, f)| {
+                            if f.0 == member_ident {
+                                Some(idx)
+                            } else {
+                                None
+                            }
+                        },
+                    )
+                    .unwrap();
+
+                let offset = offsets[idx as usize];
+
+                let slot = self.stack_slots.get(&struct_def.name).unwrap();
+
+                let val = self.builder.ins().stack_load(
+                    member_type.to_ir(self.module.isa()),
+                    *slot,
+                    offset,
+                );
+
+                // TODO: get stack slot (store hashmap in self?) + stack load, use expr -> pointer
+                // as base
+
+                return val;
+            }
+        }
+        panic!("struct member");
+    }
 
     fn translate_struct_inst(
         &mut self,
@@ -592,7 +642,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 }
 
                 let expr_type =
-                    find_expression_type(expr, &self.variables, self.functions).unwrap();
+                    find_expression_type(expr, &self.variables, self.functions, self.structs)
+                        .unwrap();
                 if *struct_.fields.get(ident).unwrap() != expr_type {
                     panic!("Instantiated struct member {} is of wrong type", ident);
                 }
@@ -626,6 +677,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     .bytes();
             }
 
+            self.stack_slots.insert(struct_identifier.to_string(), slot);
+
             return instance_pointer;
         } else {
             panic!("Struct with name {} not found", struct_identifier);
@@ -650,7 +703,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         if let Some(type_) = type_hint {
             ty = type_;
         } else {
-            ty = find_expression_type(&expression, &self.variables, self.functions)
+            ty = find_expression_type(&expression, &self.variables, self.functions, self.structs)
                 .expect("Could not determine expression type");
         }
 
@@ -721,7 +774,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         then_body: Vec<Expression>,
         else_body: Vec<Expression>,
     ) -> Value {
-        let cond_type = find_expression_type(&cond, &self.variables, self.functions).unwrap();
+        let cond_type =
+            find_expression_type(&cond, &self.variables, self.functions, self.structs).unwrap();
         let condition_value = self.translate_expression(cond);
 
         let then_block = self.builder.create_block();
@@ -736,12 +790,14 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             then_body.last().expect("If body has no expressions"),
             &self.variables,
             self.functions,
+            self.structs,
         );
 
         let else_ty = find_expression_type(
             else_body.last().expect("Else body has no expressions"),
             &self.variables,
             self.functions,
+            self.structs,
         );
 
         if let Some(l) = &then_ty &&
@@ -823,7 +879,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         self.builder.ins().jump(header_block, &[]);
         self.builder.switch_to_block(header_block);
 
-        let condition_ty = find_expression_type(&condition, &self.variables, self.functions);
+        let condition_ty =
+            find_expression_type(&condition, &self.variables, self.functions, self.structs);
         if condition_ty.unwrap() != ast::Type::Bool {
             panic!("While loop condition must be a boolean expression");
         }
@@ -869,8 +926,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         rhs: Expression,
         op: BooleanExpr,
     ) -> Value {
-        let lhs_ty = find_expression_type(&lhs, &self.variables, self.functions);
-        let rhs_ty = find_expression_type(&rhs, &self.variables, self.functions);
+        let lhs_ty = find_expression_type(&lhs, &self.variables, self.functions, self.structs);
+        let rhs_ty = find_expression_type(&rhs, &self.variables, self.functions, self.structs);
 
         if let Some(lt) = lhs_ty
             && let Some(rt) = rhs_ty
@@ -894,7 +951,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
     }
 
     fn translate_boolean_unary(&mut self, expr: Expression, op: BooleanExpr) -> Value {
-        let ty = find_expression_type(&expr, &self.variables, self.functions);
+        let ty = find_expression_type(&expr, &self.variables, self.functions, self.structs);
 
         if let Some(expr_ty) = ty {
             if expr_ty != ast::Type::Bool {
@@ -910,8 +967,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         }
     }
     fn translate_cmp(&mut self, comp: Comparison, lhs: Expression, rhs: Expression) -> Value {
-        let ty_l = find_expression_type(&lhs, &self.variables, self.functions).unwrap();
-        let ty_r = find_expression_type(&rhs, &self.variables, self.functions).unwrap();
+        let ty_l =
+            find_expression_type(&lhs, &self.variables, self.functions, self.structs).unwrap();
+        let ty_r =
+            find_expression_type(&rhs, &self.variables, self.functions, self.structs).unwrap();
 
         if ty_l != ty_r {
             panic!("Expression arms type do not match");
@@ -974,11 +1033,12 @@ fn find_expression_type(
     expression: &Expression,
     variables: &HashMap<String, (Variable, ast::Type)>,
     functions: &Functions,
+    structs: &Structs,
 ) -> Option<ast::Type> {
     // All literals are of same type
     let binary = |rhs: &Box<Expression>, lhs: &Box<Expression>| -> Option<ast::Type> {
-        let left = find_expression_type(lhs, variables, functions);
-        let right = find_expression_type(rhs, variables, functions);
+        let left = find_expression_type(lhs, variables, functions, structs);
+        let right = find_expression_type(rhs, variables, functions, structs);
         if let Some(l) = &left
             && let Some(r) = &right
         {
@@ -991,6 +1051,7 @@ fn find_expression_type(
             return None;
         }
     };
+
     match expression {
         Expression::Literal(literal) => Some(literal.get_type()),
         Expression::Identifier(ident) => Some(variables.get(ident).unwrap().1.clone()),
@@ -1014,6 +1075,22 @@ fn find_expression_type(
         Expression::Assign(_, _) => None,
         Expression::Return(ref _expr) => None,
         Expression::StructInstantiate(ident, _) => Some(ast::Type::Struct(ident.clone())),
+        Expression::StructMember(expr, member_ident) => {
+            if let Some(ty) = find_expression_type(expr, variables, functions, structs) {
+                if let ast::Type::Struct(s) = ty {
+                    return Some(
+                        structs
+                            .get(&s)
+                            .unwrap()
+                            .fields
+                            .get(member_ident)
+                            .unwrap()
+                            .clone(),
+                    );
+                }
+            }
+            return None;
+        }
         _ => None,
     }
 }

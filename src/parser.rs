@@ -119,8 +119,10 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         l:literal() { l }
         i:identifier() _ [Token::OpenParenthesis] args:((_ e:expression() _ {e}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, None) }
         i:identifier() { Expression::Identifier(i) }
-        --
         a:@ [Token::Period] i:identifier() _ [Token::OpenParenthesis] args:((_ b:expression() _ {b}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, Some(Box::new(a))) }
+        --
+        e:@ [Token::Period] i:identifier() { Expression::StructMember(Box::new(e), i) }
+
     }
 
     rule returnexpr() -> Expression

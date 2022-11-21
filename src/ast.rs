@@ -114,6 +114,7 @@ pub enum Expression {
     Return(Option<Box<Expression>>),
     GlobalDataAddr(String),
     StructInstantiate(String, Vec<(String, Expression)>), // type, (member, value),
+    StructMember(Box<Expression>, String),
 }
 
 #[derive(Debug, Clone)]
