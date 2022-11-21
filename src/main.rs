@@ -22,7 +22,6 @@ pub struct Args {
 fn main() {
     pretty_env_logger::init();
     let args = Args::parse();
-    println!("{:?}", args);
     let mut codegen = AotCodegen::default();
 
     codegen.compile_project(&args.file, &args.out);
