@@ -1,5 +1,5 @@
 mod common;
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 const IF_ELSE: &str = r#"
 fn main(a: i32, b: i32) -> i32:
@@ -14,4 +14,3 @@ fn order_of_operations() {
         10
     );
 }
-

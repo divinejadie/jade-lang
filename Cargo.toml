@@ -1,7 +1,11 @@
 [package]
-name = "jadescript"
+name = "jadec"
+authors = ["Amelia Joison <joison.me@gmail.com>"]
 version = "0.1.0"
+repository = "https://github.com/amnetrine/jade-lang"
 edition = "2021"
+license = "AGPL-3.0-or-later"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -1,5 +1,5 @@
 mod common;
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 const IF_ELSE: &str = r#"fn main(a: i32) -> bool:
 	if a >= 0:
@@ -33,4 +33,3 @@ fn if_else_expr_assign() {
         true
     );
 }
-

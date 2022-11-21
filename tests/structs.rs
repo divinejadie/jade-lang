@@ -1,5 +1,5 @@
 mod common;
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 const STRUCT_INST: &str = r#"
 struct Test:

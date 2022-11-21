@@ -1,5 +1,5 @@
 mod common;
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 const AND: &str = r#"
 fn main(a: bool, b: bool) -> bool:
@@ -84,4 +84,3 @@ fn xor_true_false() {
     let mut jit_codegen = JitCodegen::default();
     assert!(common::run_code::<(bool, bool), bool>(&mut jit_codegen, XOR, (true, false)).unwrap(),);
 }
-

@@ -1,4 +1,4 @@
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 #[allow(dead_code)]
 pub fn run_code<I, O>(jit: &mut JitCodegen, code: &str, input: I) -> Result<O, String> {
@@ -6,4 +6,3 @@ pub fn run_code<I, O>(jit: &mut JitCodegen, code: &str, input: I) -> Result<O, S
     let code_fn = unsafe { std::mem::transmute::<_, fn(I) -> O>(code_ptr) };
     Ok(code_fn(input))
 }
-

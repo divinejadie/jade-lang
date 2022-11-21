@@ -1,5 +1,5 @@
 mod common;
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 const HINT: &str = r#"
 fn main() -> bool:
@@ -61,4 +61,3 @@ fn declaration_many() {
         false
     );
 }
-

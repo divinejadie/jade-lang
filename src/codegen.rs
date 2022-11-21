@@ -16,6 +16,7 @@ type Functions = HashMap<String, ast::Function>;
 type Structs = HashMap<String, ast::Struct>;
 
 static JIT_ENTRY: OnceCell<FuncId> = OnceCell::new();
+const FILE_EXT: &'static str = "jade";
 
 pub struct JitCodegen {
     builder_context: FunctionBuilderContext,
@@ -89,7 +90,7 @@ fn compile_module<T: Module>(
 
         if path.is_dir() {
             path.push("mod");
-            path.set_extension("jadescript");
+            path.set_extension(FILE_EXT);
 
             if !path.exists() {
                 return Err(format!(
@@ -98,9 +99,9 @@ fn compile_module<T: Module>(
                 ));
             }
         } else {
-            path.set_extension("jadescript");
+            path.set_extension(FILE_EXT);
         }
-        // Modules can either be a single file, OR a folder with <mod_name>/mod.jadescript
+        // Modules can either be a single file, OR a folder with <mod_name>/mod.jade
 
         let module_code = std::fs::read_to_string(&path)
             .expect(&format!("Failed reading module {}", include_module));

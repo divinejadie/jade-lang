@@ -1,5 +1,5 @@
 mod common;
-use jadescript::JitCodegen;
+use jadec::JitCodegen;
 
 const CODE: &str = r#"
 fn double(x: f32) -> f32:
