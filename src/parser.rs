@@ -5,7 +5,6 @@ pub fn parse(code: &str) -> Result<Vec<SourceFileItem>, String> {
     let tokens = lexer::lex(code).map_err(|e| e.to_string())?;
     let tokens = indent_process(tokens);
     let slice = SliceByRef(&tokens);
-    println!("{:?}", tokens);
 
     parser::source_file(&slice).map_err(|e| e.to_string())
 }
