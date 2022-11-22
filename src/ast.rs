@@ -11,11 +11,13 @@ pub enum TypeLiteral {
     I16(i16),
     I32(i32),
     I64(i64),
+    String(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Struct(String),
+    String,
     Pointer,
     Bool,
     F32,
@@ -31,6 +33,7 @@ impl Type {
         match self {
             Type::Struct(_) => isa.pointer_type(),
             Type::Pointer => isa.pointer_type(),
+            Type::String => isa.pointer_type(),
             Type::Bool => types::B8,
             Type::F32 => types::F32,
             Type::F64 => types::F64,
@@ -66,6 +69,7 @@ impl TypeLiteral {
             TypeLiteral::I16(_) => Type::I16,
             TypeLiteral::I32(_) => Type::I32,
             TypeLiteral::I64(_) => Type::I64,
+            TypeLiteral::String(_) => Type::String,
         }
     }
 }

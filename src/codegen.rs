@@ -395,15 +395,7 @@ struct FunctionTranslator<'a, T: Module> {
 impl<'a, T: Module> FunctionTranslator<'a, T> {
     fn translate_expression(&mut self, expression: Expression) -> Value {
         match expression {
-            Expression::Literal(literal) => match literal {
-                TypeLiteral::F32(val) => self.builder.ins().f32const(Ieee32::with_float(val)),
-                TypeLiteral::I32(val) => self
-                    .builder
-                    .ins()
-                    .iconst(types::I32, Imm64::new(val as i64)),
-                TypeLiteral::Bool(val) => self.builder.ins().bconst(types::B8, val),
-                _ => Value::from_u32(0),
-            },
+            Expression::Literal(literal) => self.translate_literal(literal),
             Expression::Add(lhs, rhs) => {
                 let ty_lhs =
                     find_expression_type(&lhs, &self.variables, self.functions, self.structs);
@@ -552,6 +544,49 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             Expression::StructMember(expr, member_ident) => {
                 self.translate_struct_member(&member_ident, *expr)
             }
+        }
+    }
+
+    fn translate_literal(&mut self, literal: TypeLiteral) -> Value {
+        match literal {
+            TypeLiteral::F32(val) => self.builder.ins().f32const(Ieee32::with_float(val)),
+            TypeLiteral::I32(val) => self
+                .builder
+                .ins()
+                .iconst(types::I32, Imm64::new(val as i64)),
+            TypeLiteral::Bool(val) => self.builder.ins().bconst(types::B8, val),
+            TypeLiteral::String(val) => {
+                let mut with_null = val;
+                with_null.push('\0');
+
+                let string_data = with_null.bytes();
+                // Store a string onto the stack, returning a pointer to it's address.
+                // TODO: Change to string span instead of null terminated.
+                let pointer = self.module.target_config().pointer_type();
+                let slot = self
+                    .builder
+                    .create_sized_stack_slot(codegen::ir::StackSlotData {
+                        kind: StackSlotKind::ExplicitSlot,
+                        size: string_data.len() as u32 - 1,
+                    });
+
+                let stack_pointer = self.builder.ins().stack_addr(pointer, slot, 0);
+                let byte_length = self.builder.ins().iconst(pointer, string_data.len() as i64);
+                self.builder.ins().stack_store(byte_length, slot, 0);
+
+                for (i, byte) in string_data.into_iter().enumerate() {
+                    let byte = unsafe {
+                        self.builder
+                            .ins()
+                            .iconst(types::I8, std::mem::transmute::<u8, i8>(byte) as i64)
+                    };
+
+                    self.builder.ins().stack_store(byte, slot, i as i32);
+                }
+
+                stack_pointer
+            }
+            _ => Value::from_u32(0),
         }
     }
 

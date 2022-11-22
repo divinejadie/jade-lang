@@ -5,6 +5,7 @@ pub fn parse(code: &str) -> Result<Vec<SourceFileItem>, String> {
     let tokens = lexer::lex(code).map_err(|e| e.to_string())?;
     let tokens = indent_process(tokens);
     let slice = SliceByRef(&tokens);
+    println!("{:?}", tokens);
 
     parser::source_file(&slice).map_err(|e| e.to_string())
 }
@@ -150,6 +151,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
                 "i32" => ast::Type::I32,
                 "i64" => ast::Type::I64,
                 "bool" => ast::Type::Bool,
+                "str" => ast::Type::String,
                 _ => ast::Type::Struct(i.clone()),
             }
         }

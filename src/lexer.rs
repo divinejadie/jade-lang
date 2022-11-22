@@ -39,6 +39,7 @@ pub enum Token {
     Period,
     Comma,
     Ampersand,
+    DoubleQuote,
 
     Space,
     Indent,
@@ -209,4 +210,5 @@ peg::parser!(pub grammar lexer() for str {
         / n:$(['0'..='9']+) { Token::Literal(TypeLiteral::I32(n.parse::<i32>().unwrap())) }
         / "true" { Token::Literal(TypeLiteral::Bool(true)) }
         / "false" { Token::Literal(TypeLiteral::Bool(false)) }
+        / r#"""# n:$([^ '"']*) r#"""# { Token::Literal(TypeLiteral::String(n.to_string()))}
 });
