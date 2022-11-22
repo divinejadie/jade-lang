@@ -119,6 +119,7 @@ pub enum Expression {
     GlobalDataAddr(String),
     StructInstantiate(String, Vec<(String, Expression)>), // type, (member, value),
     StructMember(Box<Expression>, String),
+    Cast(Box<Expression>, Type),
 }
 
 #[derive(Debug, Clone)]
