@@ -121,6 +121,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         i:identifier() { Expression::Identifier(i) }
         a:@ [Token::Period] i:identifier() _ [Token::OpenParenthesis] args:((_ b:expression() _ {b}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, Some(Box::new(a))) }
         --
+        e:@ _ [Token::As] _ t:type_name() { Expression::Cast(Box::new(e), t) }
         e:@ [Token::Period] i:identifier() { Expression::StructMember(Box::new(e), i) }
 
     }
