@@ -544,6 +544,38 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             Expression::StructMember(expr, member_ident) => {
                 self.translate_struct_member(&member_ident, *expr)
             }
+            Expression::Cast(expr, ty) => self.translate_cast(*expr, ty),
+        }
+    }
+
+    fn translate_cast(&mut self, expression: Expression, target_type: ast::Type) -> Value {
+        let current_type =
+            find_expression_type(&expression, &self.variables, self.functions, self.structs)
+                .unwrap();
+        let value = self.translate_expression(expression);
+
+        // Notes:
+        // Float -> Int conversions are done by rounding
+        match current_type {
+            ast::Type::F32 => match target_type {
+                ast::Type::F64 => self.builder.ins().fpromote(types::F64, value),
+                ast::Type::I32 => {
+                    let rounded = self.builder.ins().nearest(value);
+                    self.builder.ins().fcvt_to_sint(types::I32, rounded)
+                }
+                ast::Type::I64 => {
+                    let rounded = self.builder.ins().nearest(value);
+                    self.builder.ins().fcvt_to_sint(types::I64, rounded)
+                }
+                _ => unimplemented!(),
+            },
+            ast::Type::I32 => match target_type {
+                ast::Type::I64 => self.builder.ins().sextend(types::I64, value),
+                ast::Type::F32 => self.builder.ins().fcvt_from_sint(types::F32, value),
+                ast::Type::F64 => self.builder.ins().fcvt_from_sint(types::F64, value),
+                _ => unimplemented!(),
+            },
+            _ => unimplemented!(),
         }
     }
 
