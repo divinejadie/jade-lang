@@ -346,14 +346,6 @@ impl JitCodegen {
         let mut functions = HashMap::new();
         let mut structs = HashMap::new();
 
-        create_data(
-            &mut self.data_context,
-            &mut module,
-            "hello",
-            "hello\0".to_string().into_bytes(),
-        )
-        .unwrap();
-
         compile_module(
             &std::path::PathBuf::new(),
             &main_code,
