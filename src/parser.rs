@@ -35,7 +35,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
 
     rule structure() -> Struct
         = [Token::NewLine]* [Token::Struct] _ name:identifier() _ [Token::Colon] _ [Token::NewLine]
-        [Token::Indent] fields:((f:struct_field() { f })** ([Token::Comma] _ [Token::NewLine]))
+        [Token::Indent] fields:((f:struct_field() { f })** [Token::NewLine])
         [Token::NewLine] [Token::Dedent]
         {
             use std::collections::BTreeMap;
@@ -70,14 +70,13 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         / binary_op()
 
     rule struct_inst() -> Expression
-        = i:identifier() _ [Token::Colon] _ [Token::NewLine]
-        [Token::Indent] members:((f:struct_inst_member() { (f.0, f.1) })** ([Token::Comma]? [Token::NewLine]))
-        [Token::NewLine] [Token::Dedent]
         = [Token::NewLine]* [Token::Instantiate] _ i:identifier() _ [Token::Colon] _ [Token::NewLine]
+        [Token::Indent] members:((f:struct_inst_member() { (f.0, f.1) })*) _
+        [Token::Dedent]
         { Expression::StructInstantiate(i, members) }
 
     rule struct_inst_member() -> (String, Expression)
-        = name:identifier() [Token::Colon] _ e:expression() { (name, e) }
+        = name:identifier() [Token::Colon] _ e:expression() _ [Token::NewLine]? { (name, e) }
 
     rule if_else() -> Expression
         = [Token::If] _ e:expression() _ [Token::Colon]
