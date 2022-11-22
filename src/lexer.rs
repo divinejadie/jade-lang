@@ -20,6 +20,7 @@ pub enum Token {
     Module,
     Struct,
     Instantiate,
+    As,
     And,
     Or,
     Xor,
@@ -180,6 +181,7 @@ peg::parser!(pub grammar lexer() for str {
         / "or" { Token::Or }
         / "xor" { Token::Xor }
         / "not" { Token::Not }
+        / "as" { Token::As }
 
     rule punctuation() -> Token
         = "=" { Token::Equals }
