@@ -19,6 +19,7 @@ pub enum Token {
     Mut,
     Module,
     Struct,
+    Instantiate,
     And,
     Or,
     Xor,
@@ -166,8 +167,9 @@ peg::parser!(pub grammar lexer() for str {
     rule keyword() -> Token
         = "fn" { Token::Function }
         / "struct" { Token::Struct }
-        / "module" { Token::Module }
+        / "inst" { Token::Instantiate }
         / "let" { Token::Let }
+        / "module" { Token::Module }
         / "mut" { Token::Mut }
         / "return" { Token::Return }
         / "if" { Token::If }

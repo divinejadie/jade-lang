@@ -7,8 +7,8 @@ struct Test:
 	member_var_2: f32
 
 fn main() -> bool:
-	Test:
 		member_var_1: 14,
+	inst Test:
 		member_var_2: 15.0
 	return true
 "#;
@@ -19,8 +19,8 @@ struct Test:
 	member_var_2: f32
 
 fn main() -> bool:
-	let x: Test = Test:
 		member_var_1: 1,
+	let x: Test = inst Test:
 		member_var_2: 2.0
 	return true
 "#;
@@ -31,8 +31,8 @@ struct Test:
 	member_var_2: f32
 
 fn main() -> bool:
-	let x = Test:
 		member_var_1: 1,
+	let x = inst Test:
 		member_var_2: 2.0
 	return true
 "#;
@@ -43,8 +43,8 @@ struct Test:
 	member_var_2: i32
 
 fn main() -> i32:
-	let x = Test:
 		member_var_1: 1,
+	let x = inst Test:
 		member_var_2: 2
 	return x.member_var_1 + x.member_var_2
 "#;

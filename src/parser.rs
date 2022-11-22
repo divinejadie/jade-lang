@@ -73,6 +73,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         = i:identifier() _ [Token::Colon] _ [Token::NewLine]
         [Token::Indent] members:((f:struct_inst_member() { (f.0, f.1) })** ([Token::Comma]? [Token::NewLine]))
         [Token::NewLine] [Token::Dedent]
+        = [Token::NewLine]* [Token::Instantiate] _ i:identifier() _ [Token::Colon] _ [Token::NewLine]
         { Expression::StructInstantiate(i, members) }
 
     rule struct_inst_member() -> (String, Expression)
