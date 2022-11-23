@@ -40,7 +40,6 @@ pub enum Token {
     Period,
     Comma,
     Ampersand,
-    DoubleQuote,
 
     Space,
     Indent,
