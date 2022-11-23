@@ -360,7 +360,7 @@ impl JitCodegen {
         .unwrap();
 
         module.clear_context(&mut self.context);
-        module.finalize_definitions();
+        module.finalize_definitions().map_err(|x| x.to_string())?;
 
         let code = module.get_finalized_function(*JIT_ENTRY.get().unwrap());
 
@@ -378,7 +378,9 @@ impl JitCodegen {
             .define_data(id, &self.data_context)
             .map_err(|e| e.to_string())?;
         self.data_context.clear();
-        self.module.finalize_definitions();
+        self.module
+            .finalize_definitions()
+            .map_err(|x| x.to_string())?;
         let buffer = self.module.get_finalized_data(id);
 
         Ok(unsafe { std::slice::from_raw_parts(buffer.0, buffer.1) })
@@ -588,7 +590,13 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 .builder
                 .ins()
                 .iconst(types::I32, Imm64::new(val as i64)),
-            TypeLiteral::Bool(val) => self.builder.ins().bconst(types::B8, val),
+            TypeLiteral::Bool(val) => self.builder.ins().iconst(
+                types::I8,
+                match val {
+                    true => i64::MAX, // all ones
+                    false => 0i64,    // all zeros
+                },
+            ),
             TypeLiteral::String(val) => {
                 let mut with_null = val;
                 with_null.push('\0');
@@ -1139,7 +1147,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             ast::Type::I16 => self.builder.ins().iconst(types::I16, 0),
             ast::Type::I32 => self.builder.ins().iconst(types::I32, 0),
             ast::Type::I64 => self.builder.ins().iconst(types::I64, 0),
-            ast::Type::Bool => self.builder.ins().bconst(types::B8, false),
+            ast::Type::Bool => self.builder.ins().iconst(types::I8, 0),
             _ => unimplemented!(),
         }
     }

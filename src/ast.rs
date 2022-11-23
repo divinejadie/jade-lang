@@ -34,7 +34,7 @@ impl Type {
             Type::Struct(_) => isa.pointer_type(),
             Type::Pointer => isa.pointer_type(),
             Type::String => isa.pointer_type(),
-            Type::Bool => types::B8,
+            Type::Bool => types::I8,
             Type::F32 => types::F32,
             Type::F64 => types::F64,
             Type::I8 => types::I8,

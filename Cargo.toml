@@ -11,10 +11,10 @@ readme = "README.md"
 
 [dependencies]
 peg = "0.8.1"
-cranelift = "0.89.1"
-cranelift-module = "0.89"
-cranelift-object = "0.89"
-cranelift-jit = "0.89"
+cranelift = "0.90"
+cranelift-module = "0.90"
+cranelift-object = "0.90"
+cranelift-jit = "0.90"
 
 
 clap = { version = "4.0", features = ["derive"] }
