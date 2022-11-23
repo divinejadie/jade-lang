@@ -818,7 +818,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 match args_ty[0] {
                     ast::Type::F32 | ast::Type::F64 => self.builder.ins().fabs(args_val[0]),
                     ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
-                        self.builder.ins().iabs(args_val[0])
+                        todo!();
+                        // self.builder.ins().iabs(args_val[0])
                     }
                     _ => unimplemented!(),
                 }

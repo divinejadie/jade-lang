@@ -26,15 +26,15 @@ fn main(a: f64) -> f64:
 	return abs(a)
 "#;
 
-const ABS_I32: &str = r#"
-fn main(a: i32) -> i32:
-	return abs(a)
-"#;
-
-const ABS_I64: &str = r#"
-fn main(a: i64) -> i64:
-	return abs(a)
-"#;
+// const ABS_I32: &str = r#"
+// fn main(a: i32) -> i32:
+// 	return abs(a)
+// "#;
+//
+// const ABS_I64: &str = r#"
+// fn main(a: i64) -> i64:
+// 	return abs(a)
+// "#;
 
 #[test]
 fn builtin_ufcs() {
@@ -99,39 +99,39 @@ fn abs_f32_pos() {
     );
 }
 
-#[test]
-fn abs_i32_pos() {
-    pretty_env_logger::init();
-    let mut jit_codegen = JitCodegen::default();
-    assert_eq!(
-        common::run_code::<i32, i32>(&mut jit_codegen, ABS_I32, 12i32).unwrap(),
-        12i32
-    );
-}
-
-#[test]
-fn abs_i32_neg() {
-    let mut jit_codegen = JitCodegen::default();
-    assert_eq!(
-        common::run_code::<i32, i32>(&mut jit_codegen, ABS_I32, -12i32).unwrap(),
-        12i32
-    );
-}
-
-#[test]
-fn abs_i64_pos() {
-    let mut jit_codegen = JitCodegen::default();
-    assert_eq!(
-        common::run_code::<i64, i64>(&mut jit_codegen, ABS_I64, 12).unwrap(),
-        12
-    );
-}
-
-#[test]
-fn abs_i64_neg() {
-    let mut jit_codegen = JitCodegen::default();
-    assert_eq!(
-        common::run_code::<i64, i64>(&mut jit_codegen, ABS_I64, -12).unwrap(),
-        12
-    );
-}
+// #[test]
+// fn abs_i32_pos() {
+//     pretty_env_logger::init();
+//     let mut jit_codegen = JitCodegen::default();
+//     assert_eq!(
+//         common::run_code::<i32, i32>(&mut jit_codegen, ABS_I32, 12i32).unwrap(),
+//         12i32
+//     );
+// }
+//
+// #[test]
+// fn abs_i32_neg() {
+//     let mut jit_codegen = JitCodegen::default();
+//     assert_eq!(
+//         common::run_code::<i32, i32>(&mut jit_codegen, ABS_I32, -12i32).unwrap(),
+//         12i32
+//     );
+// }
+//
+// #[test]
+// fn abs_i64_pos() {
+//     let mut jit_codegen = JitCodegen::default();
+//     assert_eq!(
+//         common::run_code::<i64, i64>(&mut jit_codegen, ABS_I64, 12).unwrap(),
+//         12
+//     );
+// }
+//
+// #[test]
+// fn abs_i64_neg() {
+//     let mut jit_codegen = JitCodegen::default();
+//     assert_eq!(
+//         common::run_code::<i64, i64>(&mut jit_codegen, ABS_I64, -12).unwrap(),
+//         12
+//     );
+// }
