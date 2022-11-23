@@ -18,6 +18,8 @@ type Structs = HashMap<String, ast::Struct>;
 static JIT_ENTRY: OnceCell<FuncId> = OnceCell::new();
 const FILE_EXT: &'static str = "jade";
 
+const BUILTINS: [&'static str; 2] = ["sqrt", "abs"];
+
 pub struct JitCodegen {
     builder_context: FunctionBuilderContext,
     context: codegen::Context,
@@ -773,12 +775,68 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         value
     }
 
+    fn translate_builtin(
+        &mut self,
+        name: &str,
+        args: Vec<Expression>,
+        base: Option<Box<Expression>>,
+    ) -> Value {
+        let mut args_val = Vec::<Value>::new();
+        let mut args_ty = Vec::<ast::Type>::new();
+
+        if let Some(b) = &base {
+            args_ty.push(
+                find_expression_type(&b, &self.variables, self.functions, self.structs).unwrap(),
+            );
+        }
+
+        for arg in &args {
+            args_ty.push(
+                find_expression_type(&arg, &self.variables, self.functions, self.structs).unwrap(),
+            );
+        }
+
+        if let Some(b) = base {
+            args_val.push(self.translate_expression(*b));
+        }
+
+        for arg in args {
+            args_val.push(self.translate_expression(arg));
+        }
+
+        match name {
+            // Floating point square root
+            "sqrt" => {
+                assert_eq!(args_val.len(), 1);
+                match args_ty[0] {
+                    ast::Type::F32 | ast::Type::F64 => self.builder.ins().sqrt(args_val[0]),
+                    _ => unimplemented!(),
+                }
+            }
+            "abs" => {
+                assert_eq!(args_val.len(), 1);
+                match args_ty[0] {
+                    ast::Type::F32 | ast::Type::F64 => self.builder.ins().fabs(args_val[0]),
+                    ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
+                        self.builder.ins().iabs(args_val[0])
+                    }
+                    _ => unimplemented!(),
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+
     fn translate_call(
         &mut self,
         name: &str,
         args: Vec<Expression>,
         base: Option<Box<Expression>>,
     ) -> Value {
+        if BUILTINS.contains(&name) {
+            return self.translate_builtin(name, args, base);
+        }
+
         let mut signature = self.module.make_signature();
 
         let func = &self
