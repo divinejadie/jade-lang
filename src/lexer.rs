@@ -28,6 +28,8 @@ pub enum Token {
 
     OpenParenthesis,
     CloseParenthesis,
+    OpenBracket,
+    CloseBracket,
     Colon,
     Equals,
     GreaterThan,
@@ -197,6 +199,8 @@ peg::parser!(pub grammar lexer() for str {
         / ">" { Token::GreaterThan }
         / "(" { Token::OpenParenthesis }
         / ")" { Token::CloseParenthesis }
+        / "[" { Token::OpenBracket }
+        / "]" { Token::CloseBracket }
 
     rule spacing() -> Token
         = "\t" { Token::Indent }
