@@ -114,7 +114,7 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         a:@ _ [Token::And] _ b:(@) { Expression::And(Box::new(a), Box::new(b)) }
         a:@ _ [Token::Or] _ b:(@) { Expression::Or(Box::new(a), Box::new(b)) }
         a:@ _ [Token::Xor] _ b:(@) { Expression::Xor(Box::new(a), Box::new(b)) }
-        _ [Token::Not] _ e:expression() { Expression::Not(Box::new(e)) }
+        [Token::Not] _ e:expression() { Expression::Not(Box::new(e)) }
         --
         l:literal() { l }
         i:identifier() _ [Token::OpenParenthesis] args:((_ e:expression() _ {e}) ** [Token::Comma]) [Token::CloseParenthesis] { Expression::Call(i, args, None) }
