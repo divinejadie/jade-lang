@@ -17,6 +17,7 @@ pub enum TypeLiteral {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Struct(String),
+    Array(Box<Type>),
     String,
     Pointer,
     Bool,
@@ -32,6 +33,7 @@ impl Type {
     pub fn to_ir(&self, isa: &dyn TargetIsa) -> types::Type {
         match self {
             Type::Struct(_) => isa.pointer_type(),
+            Type::Array(_) => isa.pointer_type(),
             Type::Pointer => isa.pointer_type(),
             Type::String => isa.pointer_type(),
             Type::Bool => types::I8,
@@ -120,6 +122,7 @@ pub enum Expression {
     StructInstantiate(String, Vec<(String, Expression)>), // type, (member, value),
     StructMember(Box<Expression>, String),
     Cast(Box<Expression>, Type),
+    Array(Vec<Expression>),
 }
 
 #[derive(Debug, Clone)]
