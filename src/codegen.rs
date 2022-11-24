@@ -549,7 +549,49 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 self.translate_struct_member(&member_ident, *expr)
             }
             Expression::Cast(expr, ty) => self.translate_cast(*expr, ty),
+            Expression::Array(exprs) => self.translate_array(exprs),
         }
+    }
+
+    fn translate_array(&mut self, entries: Vec<Expression>) -> Value {
+        // Check all expressions evaluate to the same type
+        let mut types = entries
+            .iter()
+            .map(|x| find_expression_type(x, &self.variables, self.functions, self.structs))
+            .collect::<Vec<_>>();
+        let ty = types[0].clone().unwrap();
+        let eq = types.iter().all(|x| x.clone().unwrap() == ty);
+        if !eq {
+            panic!("Array elements are not of a single type");
+        }
+
+        let values = entries
+            .into_iter()
+            .map(|x| self.translate_expression(x))
+            .collect::<Vec<_>>();
+
+        let ir_type = types[0].take().unwrap().to_ir(self.module.isa());
+
+        // <len> <[values]>
+        let pointer = self.module.target_config().pointer_type();
+        let slot = self
+            .builder
+            .create_sized_stack_slot(codegen::ir::StackSlotData {
+                kind: StackSlotKind::ExplicitSlot,
+                size: ir_type.bytes() * values.len() as u32 + pointer.bytes(),
+            });
+
+        let stack_pointer = self.builder.ins().stack_addr(pointer, slot, 0);
+        let array_length = self.builder.ins().iconst(pointer, values.len() as i64);
+        self.builder.ins().stack_store(array_length, slot, 0);
+
+        for (i, val) in values.into_iter().enumerate() {
+            self.builder
+                .ins()
+                .stack_store(val, slot, i as i32 + pointer.bytes() as i32);
+        }
+
+        stack_pointer
     }
 
     fn translate_cast(&mut self, expression: Expression, target_type: ast::Type) -> Value {
@@ -1214,6 +1256,19 @@ fn find_expression_type(
                 }
             }
             return None;
+        }
+        Expression::Array(data) => {
+            let types = data
+                .iter()
+                .map(|x| find_expression_type(x, variables, functions, structs))
+                .collect::<Vec<_>>();
+            let ty = types[0].clone().unwrap();
+            let eq = types.iter().all(|x| x.clone().unwrap() == ty);
+            if eq {
+                Some(ast::Type::Array(Box::new(types[0].clone().unwrap())))
+            } else {
+                None
+            }
         }
         _ => None,
     }
