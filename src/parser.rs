@@ -123,7 +123,8 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
         --
         e:@ _ [Token::As] _ t:type_name() { Expression::Cast(Box::new(e), t) }
         e:@ [Token::Period] i:identifier() { Expression::StructMember(Box::new(e), i) }
-
+        --
+        [Token::OpenBracket] _ data:((_ b:expression() _ {b}) ** [Token::Comma]) _ [Token::CloseBracket] { Expression::Array(data) }
     }
 
     rule returnexpr() -> Expression
@@ -142,7 +143,8 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
     }
 
     rule type_name() -> ast::Type
-        = [Token::Identifier(i)] {
+        = [Token::OpenBracket] _ t:type_name() _ [Token::CloseBracket] { ast::Type::Array(Box::new(t))}
+        / [Token::Identifier(i)] {
             match i.as_str() {
                 "f32" => ast::Type::F32,
                 "f64" => ast::Type::F64,
