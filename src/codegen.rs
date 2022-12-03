@@ -409,6 +409,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                         ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
                             self.builder.ins().iadd(lhs, rhs)
                         }
+                        ast::Type::U8 | ast::Type::U16 | ast::Type::U32 | ast::Type::U64 => self
+                            .builder
+                            .ins()
+                            .uadd_overflow_trap(lhs, rhs, TrapCode::IntegerOverflow),
                         _ => panic!("Cannot add this type"),
                     }
                 } else {
@@ -432,6 +436,9 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     match expr_type {
                         ast::Type::F32 | ast::Type::F64 => self.builder.ins().fsub(lhs, rhs),
                         ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
+                            self.builder.ins().isub(lhs, rhs)
+                        }
+                        ast::Type::U8 | ast::Type::U16 | ast::Type::U32 | ast::Type::U64 => {
                             self.builder.ins().isub(lhs, rhs)
                         }
                         _ => panic!("Cannot subtract this type"),
@@ -459,6 +466,9 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                         ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
                             self.builder.ins().imul(lhs, rhs)
                         }
+                        ast::Type::U8 | ast::Type::U16 | ast::Type::U32 | ast::Type::U64 => {
+                            self.builder.ins().imul(lhs, rhs)
+                        }
                         _ => panic!("Cannot subtract this type"),
                     }
                 } else {
@@ -481,6 +491,9 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     match expr_type {
                         ast::Type::F32 | ast::Type::F64 => self.builder.ins().fdiv(lhs, rhs),
                         ast::Type::I8 | ast::Type::I16 | ast::Type::I32 | ast::Type::I64 => {
+                            self.builder.ins().sdiv(lhs, rhs)
+                        }
+                        ast::Type::U8 | ast::Type::U16 | ast::Type::U32 | ast::Type::U64 => {
                             self.builder.ins().udiv(lhs, rhs)
                         }
                         _ => panic!("Cannot divide this type"),
@@ -622,6 +635,10 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                 .builder
                 .ins()
                 .iconst(types::I32, Imm64::new(val as i64)),
+            TypeLiteral::U32(val) => self.builder.ins().iconst(
+                types::I32,
+                Imm64::new(unsafe { std::mem::transmute::<u32, i32>(val) as i64 }),
+            ),
             TypeLiteral::Bool(val) => self.builder.ins().iconst(
                 types::I8,
                 match val {
