@@ -32,11 +32,29 @@ fn if_else() {
 }
 
 #[test]
+fn if_else_false() {
+    let mut jit_codegen = JitCodegen::default();
+    assert_eq!(
+        common::run_code::<i32, bool>(&mut jit_codegen, IF_ELSE, -10).unwrap(),
+        false
+    );
+}
+
+#[test]
 fn if_else_expr_assign() {
     let mut jit_codegen = JitCodegen::default();
     assert_eq!(
         common::run_code::<i32, bool>(&mut jit_codegen, IF_2, 10).unwrap(),
         true
+    );
+}
+
+#[test]
+fn if_else_expr_assign_false() {
+    let mut jit_codegen = JitCodegen::default();
+    assert_eq!(
+        common::run_code::<i32, bool>(&mut jit_codegen, IF_2, -10).unwrap(),
+        false
     );
 }
 
