@@ -212,6 +212,7 @@ peg::parser!(pub grammar lexer() for str {
 
     rule type_literal() -> Token
         = d:$(['0'..='9']+) "." e:$(['0'..='9']+) { Token::Literal(TypeLiteral::F32(format!("{}.{}", d, e).parse::<f32>().unwrap())) }
+        / n:$(['0'..='9']+) "u32" { Token::Literal(TypeLiteral::U32(n.parse::<u32>().unwrap())) }
         / n:$(['0'..='9']+) { Token::Literal(TypeLiteral::I32(n.parse::<i32>().unwrap())) }
         / "true" { Token::Literal(TypeLiteral::Bool(true)) }
         / "false" { Token::Literal(TypeLiteral::Bool(false)) }
