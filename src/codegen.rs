@@ -30,7 +30,6 @@ pub struct JitCodegen {
 pub struct AotCodegen {
     builder_context: FunctionBuilderContext,
     context: codegen::Context,
-    data_context: DataContext,
 }
 
 impl Default for JitCodegen {
@@ -51,7 +50,6 @@ impl Default for AotCodegen {
         Self {
             builder_context: FunctionBuilderContext::new(),
             context: codegen::Context::new(),
-            data_context: DataContext::new(),
         }
     }
 }
