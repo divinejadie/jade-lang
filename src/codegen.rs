@@ -220,7 +220,7 @@ pub fn create_data<T: Module>(
     Ok(())
 }
 
-fn insert_libc_functions(module: &mut ObjectModule, functions: &mut Functions) {
+fn insert_libc_functions(module: &mut dyn Module, functions: &mut Functions) {
     let mut sig = module.make_signature();
     let pointer = module.target_config().pointer_type();
     sig.params.push(AbiParam::new(pointer));
@@ -264,14 +264,6 @@ impl AotCodegen {
 
         insert_libc_functions(&mut module, &mut functions);
         self.insert_start(&mut module);
-
-        create_data(
-            &mut self.data_context,
-            &mut module,
-            "hello",
-            "hello\0".to_string().into_bytes(),
-        )
-        .unwrap();
 
         let src_dir = main_module_path.parent().unwrap();
 
@@ -347,6 +339,8 @@ impl JitCodegen {
 
         let mut functions = HashMap::new();
         let mut structs = HashMap::new();
+
+        insert_libc_functions(&mut module, &mut functions);
 
         compile_module(
             &std::path::PathBuf::new(),
@@ -938,7 +932,7 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
         &mut self,
         cond: Expression,
         then_body: Vec<Expression>,
-        else_body: Vec<Expression>,
+        else_body: Option<Vec<Expression>>,
     ) -> Value {
         let cond_type =
             find_expression_type(&cond, &self.variables, self.functions, self.structs).unwrap();
@@ -959,19 +953,21 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             self.structs,
         );
 
-        let else_ty = find_expression_type(
-            else_body.last().expect("Else body has no expressions"),
-            &self.variables,
-            self.functions,
-            self.structs,
-        );
+        if let Some(el) = &else_body {
+            let else_ty = find_expression_type(
+                el.last().expect("Else body has no expressions"),
+                &self.variables,
+                self.functions,
+                self.structs,
+            );
 
-        if let Some(l) = &then_ty &&
+            if let Some(l) = &then_ty &&
             let Some(r) = &else_ty {
                 if l != r {
                  panic!("If body and else body do not return the same type");
                 }
             }
+        }
 
         // Blocks return the last expression
         if let Some(ty) = &then_ty {
@@ -1017,11 +1013,14 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             else_return_value = self.builder.ins().iconst(types::I32, 0);
         }
         let mut has_else_return = false;
-        for expr in else_body {
-            if let Expression::Return(_) = &expr {
-                has_else_return = true;
+
+        if let Some(el) = else_body {
+            for expr in el {
+                if let Expression::Return(_) = expr {
+                    has_else_return = true;
+                }
+                else_return_value = self.translate_expression(expr);
             }
-            else_return_value = self.translate_expression(expr);
         }
 
         // If the body has a return then don't add another jump

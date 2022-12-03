@@ -114,7 +114,7 @@ pub enum Expression {
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
-    IfElse(Box<Expression>, Vec<Expression>, Vec<Expression>),
+    IfElse(Box<Expression>, Vec<Expression>, Option<Vec<Expression>>),
     While(Box<Expression>, Vec<Expression>),
     Call(String, Vec<Expression>, Option<Box<Expression>>),
     Return(Option<Box<Expression>>),

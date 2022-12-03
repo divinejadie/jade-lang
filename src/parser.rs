@@ -5,7 +5,6 @@ pub fn parse(code: &str) -> Result<Vec<SourceFileItem>, String> {
     let tokens = lexer::lex(code).map_err(|e| e.to_string())?;
     let tokens = indent_process(tokens);
     let slice = SliceByRef(&tokens);
-
     parser::source_file(&slice).map_err(|e| e.to_string())
 }
 
@@ -80,8 +79,8 @@ peg::parser!(pub grammar parser<'a>() for SliceByRef<'a, Token> {
 
     rule if_else() -> Expression
         = [Token::If] _ e:expression() _ [Token::Colon]
-        then_body:block() _ [Token::Else] [Token::Colon]
-        else_body:block()
+        then_body:block() _
+        else_body:([Token::Else] [Token::Colon] b:block() { b })?
         { Expression::IfElse(Box::new(e), then_body, else_body) }
 
     rule while_loop() -> Expression
