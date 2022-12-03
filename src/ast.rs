@@ -11,6 +11,10 @@ pub enum TypeLiteral {
     I16(i16),
     I32(i32),
     I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
     String(String),
 }
 
@@ -27,6 +31,10 @@ pub enum Type {
     I16,
     I32,
     I64,
+    U8,
+    U16,
+    U32,
+    U64,
 }
 
 impl Type {
@@ -43,6 +51,10 @@ impl Type {
             Type::I16 => types::I16,
             Type::I32 => types::I32,
             Type::I64 => types::I64,
+            Type::U8 => types::I8,
+            Type::U16 => types::I16,
+            Type::U32 => types::I32,
+            Type::U64 => types::I64,
         }
     }
 
@@ -71,6 +83,10 @@ impl TypeLiteral {
             TypeLiteral::I16(_) => Type::I16,
             TypeLiteral::I32(_) => Type::I32,
             TypeLiteral::I64(_) => Type::I64,
+            TypeLiteral::U8(_) => Type::U8,
+            TypeLiteral::U16(_) => Type::U16,
+            TypeLiteral::U32(_) => Type::U32,
+            TypeLiteral::U64(_) => Type::U64,
             TypeLiteral::String(_) => Type::String,
         }
     }
