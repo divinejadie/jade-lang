@@ -279,13 +279,11 @@ impl AotCodegen {
         .unwrap();
 
         let compiled_module = module.finish();
-        println!("Functions {:?}", compiled_module.functions);
 
         let data = compiled_module.emit().map_err(|e| e.to_string()).unwrap();
         let mut output_path = std::env::current_dir().unwrap();
         output_path.push(output);
 
-        println!("{:?}", output);
         std::fs::write(output_path, data).unwrap();
     }
 
