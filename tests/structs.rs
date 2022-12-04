@@ -82,6 +82,21 @@ fn main() -> i32:
 	return s.inner.item
 "#;
 
+const STRUCT_METHOD: &str = r#"
+struct Data:
+	x: i32
+	y: i32
+
+fn main() -> i32:
+	let d = inst Data:
+		x: 24
+		y: 12
+	return d.get_data()
+
+fn get_data(data: Data) -> i32:
+	return data.x
+"#;
+
 #[test]
 fn struct_instantiate() {
     let mut jit_codegen = JitCodegen::default();
@@ -124,5 +139,14 @@ fn struct_instantiate_in_struct() {
     assert_eq!(
         common::run_code::<(), i32>(&mut jit_codegen, STRUCT_INSTANTIATE_IN_STRUCT, ()).unwrap(),
         9,
+    );
+}
+
+#[test]
+fn struct_method() {
+    let mut jit_codegen = JitCodegen::default();
+    assert_eq!(
+        common::run_code::<(), i32>(&mut jit_codegen, STRUCT_METHOD, ()).unwrap(),
+        24,
     );
 }
