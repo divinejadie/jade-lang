@@ -195,7 +195,7 @@ fn translate_function<T: Module>(
     }
 
     module.define_function(id, context).unwrap();
-    context.clear();
+    module.clear_context(context);
 
     Ok(())
 }
