@@ -686,6 +686,8 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
             find_expression_type(&expression, &self.variables, &self.functions, self.structs);
 
         if let Some(ty) = expr_ty {
+            let pointer = self.translate_expression(expression);
+
             if let ast::Type::Struct(name) = &ty {
                 let struct_def = self
                     .structs
@@ -722,12 +724,12 @@ impl<'a, T: Module> FunctionTranslator<'a, T> {
                     .unwrap();
 
                 let offset = offsets[idx as usize];
+                let flags = MemFlags::new();
 
-                let slot = self.stack_slots.get(&struct_def.name).unwrap();
-
-                let val = self.builder.ins().stack_load(
+                let val = self.builder.ins().load(
                     member_type.to_ir(self.module.isa()),
-                    *slot,
+                    flags,
+                    pointer,
                     offset,
                 );
 
